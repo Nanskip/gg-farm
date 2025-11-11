@@ -1,5 +1,6 @@
 import { Game } from "@Easy/Core/Shared/Game";
 import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
+import CropTile from "Resources/Land/CropTile";
 
 export default class CropManager extends AirshipSingleton {
 	// CropManager is a singleton that manages crops.
@@ -118,9 +119,9 @@ export default class CropManager extends AirshipSingleton {
 						const crop = json.decode(tostring(landData[cx][cy][x][y])) || {};
 
 						if (crop !== "null") {
-							this.setTileHeight(land, 0.5, x, y, cx, cy);
+							this.setTileHeight(land, true, "nothing?", x, y, cx, cy);
 						} else {
-							this.setTileHeight(land, 0.02, x, y, cx, cy);
+							this.setTileHeight(land, false, "nothing!", x, y, cx, cy);
 						}
 					}
 				}
@@ -132,7 +133,7 @@ export default class CropManager extends AirshipSingleton {
 	// -- ADDITIONAL FOR CLIENT --
 
 	@Client()
-	public setTileHeight(land: GameObject, height: number = 0.2, x: number = 0, y: number = 0, cx: number = 0, cy: number = 0): void {
+	public setTileHeight(land: GameObject, planted: boolean, _data: String, x: number = 0, y: number = 0, cx: number = 0, cy: number = 0): void {
 		const dirt = land.transform.Find(`Dirt_${cx}_${cy}`);
 
 		if (dirt) {
@@ -140,11 +141,7 @@ export default class CropManager extends AirshipSingleton {
 			const croptile = dirt.transform.Find(`CropTile_${y}_${x}`);
 
 			if (croptile) {
-				croptile.gameObject.transform.localPosition = new Vector3(
-					croptile.gameObject.transform.localPosition.x,
-					height, // 0.02 by default
-					croptile.gameObject.transform.localPosition.z
-				)
+				croptile.gameObject.GetAirshipComponent<CropTile>()?._UPDATE(planted, _data);
 			}
 		}
 	}
