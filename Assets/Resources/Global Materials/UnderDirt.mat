@@ -41,6 +41,7 @@ Material:
     m_Floats:
     - Vector1_6155CAB: 0.25
     - Vector1_85F6688: 0
+    - _QueueControl: 0
     m_Colors:
     - Color_1313CB5F: {r: 0.3207547, g: 0.10572334, b: 0.05023137, a: 1}
     - Color_7F5D350D: {r: 1, g: 1, b: 1, a: 1}

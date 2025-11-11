@@ -1,6 +1,6 @@
 import { Mouse } from "@Easy/Core/Shared/UserInput";
 
-export default class PlayerManager extends AirshipBehaviour {
+export default class PlayerManager extends AirshipSingleton {
 	override Start(): void {
 		print("PlayerManager initialized.");
 
