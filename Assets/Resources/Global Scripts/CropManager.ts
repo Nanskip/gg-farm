@@ -21,6 +21,8 @@ export default class CropManager extends AirshipSingleton {
 		// -- CLIENT --
 		if (Game.IsClient()) {
 			print("CLIENT: CropManager initialized.");
+			
+			this.LoadLand("NEW");
 		}
 	}
 
@@ -28,13 +30,33 @@ export default class CropManager extends AirshipSingleton {
 		this.SIGNAL_LOAD_LAND.server.OnClientEvent((player, data) => {
 			print("SERVER: CropManager received signal.");
 			print("SERVER: Data: " + data.data);
+
+			// TODO: Right now i am ignoring the fact that there's few lands in the game.
+			if (data.data === "NEW") {
+				// Create an empty land.
+				let landData: String[][] = [];
+
+				for (let x = 0; x < 5; x++) {
+					landData[x] = [];
+					for (let y = 0; y < 5; y++) {
+						const data = {crop: "null"};
+						const textData = json.encode(data);
+
+						landData[x][y] = textData;
+					}
+				}
+
+				print("SERVER: Land data: " + json.encode(landData));
+			}
 		});
 	}
 
 	public LoadLand(data: String): void {
 		if (Game.IsServer()) {
 
-		} else if (Game.IsClient()) {
+		}
+		
+		if (Game.IsClient()) {
 			//this.SIGNAL_LOAD_LAND.client.FireServer({data});
 			this.SIGNAL_LOAD_LAND.client.FireServer({data: "NEW"});
 		}
