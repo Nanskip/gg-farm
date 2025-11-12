@@ -1,8 +1,13 @@
+import { Airship } from "@Easy/Core/Shared/Airship";
+import { Game } from "@Easy/Core/Shared/Game";
+import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
 import { Mouse } from "@Easy/Core/Shared/UserInput";
 
 export default class PlayerManager extends AirshipSingleton {
 	override Start(): void {
 		print("PlayerManager initialized.");
+
+        this.registerInventoryItems();
 
 		// Create raycaster for mouse clicks in 3D space.
 		Mouse.onLeftDown.Connect(() => {
@@ -18,5 +23,21 @@ export default class PlayerManager extends AirshipSingleton {
 				// Everything is alright.
             }
         });
+
+        // Give characters a wood sword on spawn
+        if (Game.IsServer()) {
+            Airship.Characters.ObserveCharacters((character) => {
+                character.inventory?.AddItem(new ItemStack("test"));
+            });
+        }
 	}
+
+    public registerInventoryItems(): void {
+        // Register a new item type
+        Airship.Inventory.RegisterItem("test", {
+            displayName: "test",
+            accessoryPaths: ["Assets/Resources/ItemPrefabs/TestItem.prefab"],
+            image: "Assets/Resources/ItemPrefabs/TestItem.jpg",
+        });
+    }
 }
