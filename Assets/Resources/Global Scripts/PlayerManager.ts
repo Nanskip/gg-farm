@@ -1,14 +1,22 @@
 import { Airship } from "@Easy/Core/Shared/Airship";
-import Character from "@Easy/Core/Shared/Character/Character";
 import { Game } from "@Easy/Core/Shared/Game";
 import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
+import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 import { Mouse } from "@Easy/Core/Shared/UserInput";
 
 export default class PlayerManager extends AirshipSingleton {
+    private yourPlotIndex: number = 0;
+
 	override Start(): void {
 		print("PlayerManager initialized.");
 
-        this.registerInventoryItems();
+        if (Game.IsServer()) {
+            this.ConnectServerSignals();
+        }
+
+        if (Game.IsClient()) {
+            this.ConnectClientSignals();
+        }
 
 		// Create raycaster for mouse clicks in 3D space.
 		Mouse.onLeftDown.Connect(() => {
@@ -20,34 +28,24 @@ export default class PlayerManager extends AirshipSingleton {
 			// If raycast hits an object.
             if (hit && collider) {
                 const picked = collider.gameObject;
-                
-				// Everything is alright.
-                Airship.Inventory.ObserveLocalHeldItem((itemStack) => {
-                    if (itemStack?.itemDef.displayName === "Carrot") {
-                        // Test random weight application.
-                        const randomWeight = math.random(30, 150);
-                        const weightText = "Carrot [" + randomWeight + "g]";
-
-                        this.registerNewInventoryItem("Carrot", weightText, "Assets/Resources/ItemPrefabs/cat.png", 1);
-
-                        itemStack.Decrement(1);
-                        Game.localPlayer.character?.inventory.AddItem(new ItemStack(weightText));
-                    }
-                });
+            
+                //
             }
         });
 
-        // Give characters a wood sword on spawn
+        // Give characters items at spawn
         if (Game.IsServer()) {
             Airship.Characters.ObserveCharacters((character) => {
                 character.inventory?.AddItem(new ItemStack("Hoe", 1));
-            });
-
-            Airship.Characters.ObserveCharacters((character) => {
-                character.inventory?.AddItem(new ItemStack("Carrot", 20));
+                character.inventory?.AddItem(new ItemStack("CarrotSeed", 15));
             });
         }
 	}
+
+    @Client()
+    public claimPlot(plotIndex: number): void {
+
+    }
 
     public registerInventoryItems(): void {
         // Register a new item type
@@ -62,6 +60,22 @@ export default class PlayerManager extends AirshipSingleton {
             accessoryPaths: ["Assets/Resources/ItemPrefabs/TestHoe.prefab"],
             image: "Assets/Resources/ItemPrefabs/cat.png",
         });
+
+        Airship.Inventory.RegisterItem("CarrotSeed", {
+            displayName: "Carrot Seed",
+            accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
+            image: "Assets/Resources/ItemPrefabs/cat.png",
+        });
+    }
+
+    @Server()
+    private ConnectServerSignals(): void {
+
+    }
+
+    @Client()
+    private ConnectClientSignals(): void {
+
     }
 
     // ONLY FOR WEIGHT ITEM CLARIFICATION AND CREATION
@@ -76,3 +90,22 @@ export default class PlayerManager extends AirshipSingleton {
         });
     }
 }
+
+
+/*
+
+// Everything is alright.
+Airship.Inventory.ObserveLocalHeldItem((itemStack) => {
+    if (itemStack?.itemDef.displayName === "Carrot") {
+        // Test random weight application.
+        const randomWeight = math.random(30, 150);
+        const weightText = "Carrot [" + randomWeight + "g]";
+
+        this.registerNewInventoryItem("Carrot", weightText, "Assets/Resources/ItemPrefabs/cat.png", 1);
+
+        itemStack.Decrement(1);
+        Game.localPlayer.character?.inventory.AddItem(new ItemStack(weightText));
+    }
+});
+
+*/
