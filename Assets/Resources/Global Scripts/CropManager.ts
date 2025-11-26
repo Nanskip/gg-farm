@@ -24,5 +24,14 @@ export default class CropManager extends AirshipSingleton {
 
 	public Plots: GameObject[] = [];
 
-	
+	@Client()
+	public clickDirt(plotIndex: number, cx: number, cy: number, x: number, y: number): void {
+		print("CLIENT: Clicked dirt at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
+
+		const plot = this.Plots[plotIndex];
+		const dirt = plot.transform.Find("Dirt_" + cx + "_" + cy).transform.Find("CropTile_" + x + "_" + y);
+		const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
+
+		dirtScript?._UPDATE(true, "test", true);
+	}
 }

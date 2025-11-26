@@ -22,7 +22,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: Dirt
   m_Shader: {fileID: -6465566751694194690, guid: 7bfaa1259f84eb249a8404cb10243523, type: 3}
-  m_Parent: {fileID: -876546973899608171, guid: 7bfaa1259f84eb249a8404cb10243523, type: 3}
+  m_Parent: {fileID: 2100000, guid: 2a30af69552f07c4eb96ab7ae0e21830, type: 2}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
   m_InvalidKeywords: []

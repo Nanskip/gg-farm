@@ -3,6 +3,8 @@ import { Game } from "@Easy/Core/Shared/Game";
 import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
 import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 import { Mouse } from "@Easy/Core/Shared/UserInput";
+import CropManager from "./CropManager";
+import CropTile from "Resources/Land/CropTile";
 
 export default class PlayerManager extends AirshipSingleton {
     private yourPlotIndex: number = 0;
@@ -10,6 +12,7 @@ export default class PlayerManager extends AirshipSingleton {
 	override Start(): void {
 		print("PlayerManager initialized.");
 
+        this.registerInventoryItems();
         if (Game.IsServer()) {
             this.ConnectServerSignals();
         }
@@ -17,21 +20,6 @@ export default class PlayerManager extends AirshipSingleton {
         if (Game.IsClient()) {
             this.ConnectClientSignals();
         }
-
-		// Create raycaster for mouse clicks in 3D space.
-		Mouse.onLeftDown.Connect(() => {
-            const screenPos3 = new Vector3(Mouse.position.x, Mouse.position.y, 0);
-            const ray = Camera.main.ScreenPointToRay(screenPos3);
-
-            const [hit, point, normal, collider] = Physics.Raycast(ray.origin, ray.direction, 1000);
-
-			// If raycast hits an object.
-            if (hit && collider) {
-                const picked = collider.gameObject;
-            
-                //
-            }
-        });
 
         // Give characters items at spawn
         if (Game.IsServer()) {
@@ -75,7 +63,23 @@ export default class PlayerManager extends AirshipSingleton {
 
     @Client()
     private ConnectClientSignals(): void {
+		// Create raycaster for mouse clicks in 3D space.
+		Mouse.onLeftDown.Connect(() => {
+            const screenPos3 = new Vector3(Mouse.position.x, Mouse.position.y, 0);
+            const ray = Camera.main.ScreenPointToRay(screenPos3);
 
+            const [hit, point, normal, collider] = Physics.Raycast(ray.origin, ray.direction, 1000);
+
+			// If raycast hits an object.
+            if (hit && collider) {
+                const picked = collider.gameObject;
+            
+                if (picked.tag === "Dirt") {
+                    const dirtData = picked?.gameObject.GetAirshipComponent<CropTile>()?.getCoords() as String[];
+                    CropManager.Get().clickDirt(tonumber(dirtData[0]) || 0, tonumber(dirtData[1]) || 0, tonumber(dirtData[2]) || 0, tonumber(dirtData[3]) || 0, tonumber(dirtData[4]) || 0);
+                }
+            }
+        });
     }
 
     // ONLY FOR WEIGHT ITEM CLARIFICATION AND CREATION

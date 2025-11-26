@@ -1,14 +1,16 @@
 import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 import CropManager from "./CropManager";
 import { Game } from "@Easy/Core/Shared/Game";
+import CropTile from "Resources/Land/CropTile";
 
 export default class PlotManager extends AirshipSingleton {
 
 	public Plots: GameObject[] = [];
 	private serverPlotData: String[] = [];
+	private serverPlayerData: Record<string, boolean> = {};
 
 	// SIGNALS
-	private SIGNAL_LOAD_LAND = new NetworkSignal<{data: String, plotIndex: number}>("LOAD_LAND");
+	private SIGNAL_LOAD_LAND = new NetworkSignal<{data: String, plotIndex: number, name: string}>("LOAD_LAND");
 	private CLAIM_PLOT_SIGNAL = new NetworkSignal<{plotIndex: number}>("CLAIM_PLOT");
 
 	override Start(): void {
@@ -16,6 +18,7 @@ export default class PlotManager extends AirshipSingleton {
 		if (Game.IsServer()) {
 			print("SERVER: PlotManager initialized.");
 
+			this.ConnectServerSignals();
 			this.InitializePlots();
 		}
 
@@ -34,9 +37,14 @@ export default class PlotManager extends AirshipSingleton {
 		}
 		
 		if (Game.IsClient()) {
-			//this.SIGNAL_LOAD_LAND.client.FireServer({data});
-			this.SIGNAL_LOAD_LAND.client.FireServer({data: "NEW", plotIndex: 0});
+			
 		}
+	}
+
+	@Client()
+	public AskToClaimPlot(plotIndex: number): void {
+		print("CLIENT: Sending signal to claim plot.");
+		this.CLAIM_PLOT_SIGNAL.client.FireServer({plotIndex: plotIndex});
 	}
 
 	@Server()
@@ -53,7 +61,10 @@ export default class PlotManager extends AirshipSingleton {
 
 			data = this.emptyLandData();
 
-			this.serverPlotData[i] = json.encode({data: data, plotIndex: i, isFree: true});
+			this.serverPlotData[i] = json.encode({data: data, plotIndex: i + 1, isFree: true, name: "none"});
+
+			print("PlotManager: Plot #" + i + " initialized with next index: " + (i + 1));
+			print(i, this.serverPlotData[i]);
 		}
 	}
 
@@ -69,7 +80,12 @@ export default class PlotManager extends AirshipSingleton {
 				for (let x = 0; x < 5; x++) {
 					landData[cx][cy][x] = [];
 					for (let y = 0; y < 5; y++) {
-						const dat = ["null"];
+						let dat = ["locked"];
+
+						if (cx === 0 && cy === 0) {
+							dat = ["null"];
+						}
+
 						const textData = json.encode(dat);
 
 						landData[cx][cy][x][y] = textData;
@@ -82,22 +98,30 @@ export default class PlotManager extends AirshipSingleton {
 	}
 
 	@Client()
-	public SetUpLand(data: String, plotIndex: number): void {
+	public SetUpLand(data: String, plotIndex: number, name: string): void {
 		print("CLIENT: Setting up land for player.");
 		//print("CLIENT: Data: " + data);
 
 		// TODO: Right now i am ignoring the fact that there's few lands in the game.
+		// im gay
 		let landData: String[][][][] = json.decode(tostring(data));
 		//print("TEST: " + json.encode(landData));
 		let land = this.Plots[plotIndex];
+		land.transform.Find("FarmName").gameObject.GetComponent<TMP_Text>()!.text = name + "'s farm";
+		land.transform.Find("ClaimSound").gameObject.GetComponent<AudioSource>()!.Play();
 
 		for (let cx = 0; cx <= 1; cx++) {
 			for (let cy = 0; cy <= 1; cy++) {
 				for (let x = 0; x < 5; x++) {
 					for (let y = 0; y < 5; y++) {
-						const crop = json.decode(tostring(landData[cx][cy][x][y])) || {};
+						const crop = json.decode(tostring(landData[cx][cy][x][y])) as string[] || {};
+						const dirtChunk = land.transform.Find("Dirt_" + cx + "_" + cy);
+						const dirt = dirtChunk.transform.Find("CropTile_" + x + "_" + y);
+						
+						const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
 
-						//
+						dirtScript?.init(plotIndex, cx, cy, x, y);
+						dirtScript?._UPDATE(false, crop[1], !(crop[0] === "locked"));
 					}
 				}
 			}
@@ -135,7 +159,7 @@ export default class PlotManager extends AirshipSingleton {
 				}
 
 				print("SERVER: Land data: " + json.encode(landData));
-				this.SIGNAL_LOAD_LAND.server.FireClient(player, {data: json.encode(landData), plotIndex: data.plotIndex});
+				this.SIGNAL_LOAD_LAND.server.FireClient(player, {data: json.encode(landData), plotIndex: data.plotIndex, name: data.name});
 			}
 		});
 
@@ -144,15 +168,31 @@ export default class PlotManager extends AirshipSingleton {
 
             // Check if plot is available.
             const plotData = this.serverPlotData[data.plotIndex];
+			if (plotData === undefined) {
+				print("SERVER: Plot data is undefined.");
+
+				return;
+			}
+
 			const plot = json.decode(tostring(plotData)) as {data: String, plotIndex: number, isFree: boolean};
 
 			if (plot) {
+				// WHAT THE ACTUAL FUCK IS THAT
+				if (this.serverPlayerData[player.userId]) {
+					print("SERVER: Player " + player.userId + " is already claimed a plot.");
+
+					return;
+				}
+				this.serverPlayerData[player.userId] = true;
+
 				if (plot.isFree) {
 					print("SERVER: Plot is available, claiming it...");
 
 					// Claim plot.
+					data.name = player.username;
 					this.serverPlotData[data.plotIndex] = json.encode({data: plot.data, plotIndex: data.plotIndex, isFree: false});
-					this.SIGNAL_LOAD_LAND.server.FireClient(player, {data: plot.data, plotIndex: data.plotIndex});
+					this.SIGNAL_LOAD_LAND.server.FireClient(player, {data: plot.data, plotIndex: data.plotIndex, name: data.name});
+					this.CLAIM_PLOT_SIGNAL.server.FireClient(player, {plotIndex: data.plotIndex});
 				} else {
 					print("SERVER: Plot is already claimed.");
 				}
@@ -168,11 +208,15 @@ export default class PlotManager extends AirshipSingleton {
 			print("CLIENT: CropManager received signal.");
 			print("CLIENT: Data: " + data.data);
 
-			this.SetUpLand(data.data, 0);
+			this.SetUpLand(data.data, data.plotIndex, data.name);
 		});
 
 		this.CLAIM_PLOT_SIGNAL.client.OnServerEvent((data) => {
 			print("CLIENT: You claimed a plot " + data.plotIndex);
+
+			// disable collider for this plot
+			const collider = this.Plots[data.plotIndex].GetComponent<BoxCollider>() as BoxCollider;
+			collider.enabled = false;
 		})
 	}
 }
