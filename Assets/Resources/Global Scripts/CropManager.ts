@@ -23,15 +23,45 @@ export default class CropManager extends AirshipSingleton {
 	// -- END --
 
 	public Plots: GameObject[] = [];
+	public cropPrefabs: GameObject[] = [];
+	public cropTimerPrefab: GameObject;
+	public DiggedMaterial: Material;
 
 	@Client()
-	public clickDirt(plotIndex: number, cx: number, cy: number, x: number, y: number): void {
-		print("CLIENT: Clicked dirt at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
+	public clickDirt(plotIndex: number, cx: number, cy: number, x: number, y: number, eventType: string, crop: string): void {
+		// print("CLIENT: Clicked dirt at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
+
+		// const plot = this.Plots[plotIndex];
+		// const dirt = plot.transform.Find("Dirt_" + cx + "_" + cy).transform.Find("CropTile_" + x + "_" + y);
+		// const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
+
+		// dirtScript?._UPDATE(true, "test", true);
+
+		// // change material to digged dirt
+		// dirtScript?.gameObject.GetComponent<MeshRenderer>()?.SetMaterial(0, this.DiggedMaterial);
 
 		const plot = this.Plots[plotIndex];
 		const dirt = plot.transform.Find("Dirt_" + cx + "_" + cy).transform.Find("CropTile_" + x + "_" + y);
 		const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
 
-		dirtScript?._UPDATE(true, "test", true);
+		if (eventType === "Hoe") {
+			dirtScript?._DIG(true);
+
+			dirtScript?._UPDATE(true, "test", true);
+		}
+	}
+
+	@Client()
+	public setCrop(plotIndex: number, cx: number, cy: number, x: number, y: number, crop: string[]): void {
+		const plot = this.Plots[plotIndex];
+		const dirt = plot.transform.Find("Dirt_" + cx + "_" + cy).transform.Find("CropTile_" + x + "_" + y);
+		const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
+
+		dirtScript?._UPDATE(true, crop[1], true, true);
+
+		print("Crop: " + crop[2]);
+		if (crop[2] === "Carrot") {
+			dirtScript?.createCropPrefab(this.cropPrefabs[0], this.cropTimerPrefab, tostring(crop[3]));
+		}
 	}
 }

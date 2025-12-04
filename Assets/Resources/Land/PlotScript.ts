@@ -5,6 +5,11 @@ export default class PlotScript extends AirshipBehaviour {
 
 	public index: number;
 	public text: GameObject;
+	public gameCamera: GameObject;
+	private owner: String;
+	private ownerId: String;
+
+	public textComponent: TMP_Text;
 
 	override Start(): void {
 		//
@@ -18,7 +23,7 @@ export default class PlotScript extends AirshipBehaviour {
 		print("hey")
 		print(char)
 
-		if (char === "Character") {
+		if (char === "Character" || char === "AirshipTag0") {
 			print("hmm")
 			if (obj === Game.localPlayer.character?.gameObject){
 				print("PlotScript: Local character entered plot claim collider.")
@@ -26,5 +31,28 @@ export default class PlotScript extends AirshipBehaviour {
 				PlotManager.Get().AskToClaimPlot(this.index);
 			}
 		}
+	}
+
+	@Client()
+	protected override Update(dt: number): void {
+		this.text.transform.rotation = this.gameCamera.transform.rotation;
+	}
+
+	@Client()
+	setOwner(owner: String, ownerId: String): void {
+		this.owner = owner;
+		this.ownerId = ownerId;
+
+		this.textComponent!.text = owner + "'s farm";
+	}
+
+	@Client()
+	getOwner(): String {
+		return this.owner;
+	}
+
+	@Client()
+	getOwnerId(): String {
+		return this.ownerId;
 	}
 }

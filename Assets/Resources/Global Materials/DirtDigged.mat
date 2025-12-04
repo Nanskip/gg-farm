@@ -20,7 +20,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Dirt
+  m_Name: DirtDigged
   m_Shader: {fileID: -6465566751694194690, guid: 7bfaa1259f84eb249a8404cb10243523, type: 3}
   m_Parent: {fileID: -876546973899608171, guid: 7bfaa1259f84eb249a8404cb10243523, type: 3}
   m_ModifiedSerializedProperties: 0
@@ -43,9 +43,9 @@ Material:
     - Vector1_85F6688: 0
     - _QueueControl: 0
     m_Colors:
-    - Color_1313CB5F: {r: 0.17735851, g: 0.056391697, b: 0.025097877, a: 1}
+    - Color_1313CB5F: {r: 0.08437163, g: 0.028778896, b: 0.0144323865, a: 1}
     - Color_7F5D350D: {r: 1, g: 1, b: 1, a: 1}
-    - Color_BE5A53D8: {r: 0.06415099, g: 0.02132018, b: 0.008593813, a: 0}
+    - Color_BE5A53D8: {r: 0.043137256, g: 0.012158349, b: 0.010934513, a: 0}
     - Vector2_EF5B598A: {r: 1, g: 1, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

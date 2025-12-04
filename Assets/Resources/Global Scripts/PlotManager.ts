@@ -2,6 +2,7 @@ import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 import CropManager from "./CropManager";
 import { Game } from "@Easy/Core/Shared/Game";
 import CropTile from "Resources/Land/CropTile";
+import PlotScript from "Resources/Land/PlotScript";
 
 export default class PlotManager extends AirshipSingleton {
 
@@ -10,8 +11,21 @@ export default class PlotManager extends AirshipSingleton {
 	private serverPlayerData: Record<string, boolean> = {};
 
 	// SIGNALS
-	private SIGNAL_LOAD_LAND = new NetworkSignal<{data: String, plotIndex: number, name: string}>("LOAD_LAND");
-	private CLAIM_PLOT_SIGNAL = new NetworkSignal<{plotIndex: number}>("CLAIM_PLOT");
+	private SIGNAL_LOAD_LAND = new NetworkSignal<{data: String, plotIndex: number, name: string, id: string}>("LOAD_LAND");
+	private CLAIM_PLOT_SIGNAL = new NetworkSignal<{plotIndex: number, playerName: string}>("CLAIM_PLOT");
+
+	private CLICK_DIRT_SIGNAL = new NetworkSignal<{
+		plotIndex: number,
+		cx: number,
+		cy: number,
+		x: number,
+		y: number,
+		itemType: string,
+		item: string,
+		playerName: string}>
+		("CLICK_DIRT");
+
+	private CROP_SIGNAL = new NetworkSignal<{plotIndex: number, cx: number, cy: number, x: number, y: number, crop: string[]}>("CROP");
 
 	override Start(): void {
 		// -- SERVER --
@@ -31,6 +45,12 @@ export default class PlotManager extends AirshipSingleton {
 		}
 	}
 
+	override Update(dt: number): void {
+		if (Game.IsServer()) {
+			this.updatePlots(dt);
+		}
+	}
+
 	public LoadLand(data: String): void {
 		if (Game.IsServer()) {
 
@@ -44,7 +64,7 @@ export default class PlotManager extends AirshipSingleton {
 	@Client()
 	public AskToClaimPlot(plotIndex: number): void {
 		print("CLIENT: Sending signal to claim plot.");
-		this.CLAIM_PLOT_SIGNAL.client.FireServer({plotIndex: plotIndex});
+		this.CLAIM_PLOT_SIGNAL.client.FireServer({plotIndex: plotIndex, playerName: Game.localPlayer.username});
 	}
 
 	@Server()
@@ -80,10 +100,10 @@ export default class PlotManager extends AirshipSingleton {
 				for (let x = 0; x < 5; x++) {
 					landData[cx][cy][x] = [];
 					for (let y = 0; y < 5; y++) {
-						let dat = ["locked"];
+						let dat = ["locked", "notDigged", "none", 0];
 
 						if (cx === 0 && cy === 0) {
-							dat = ["null"];
+							dat = ["unlocked", "notDigged", "none", 0];
 						}
 
 						const textData = json.encode(dat);
@@ -98,17 +118,18 @@ export default class PlotManager extends AirshipSingleton {
 	}
 
 	@Client()
-	public SetUpLand(data: String, plotIndex: number, name: string): void {
-		print("CLIENT: Setting up land for player.");
+	public SetUpLand(data: String, plotIndex: number, name: string, id: string): void {
+		print("CLIENT: Setting up land for player " + name + ".");
 		//print("CLIENT: Data: " + data);
 
-		// TODO: Right now i am ignoring the fact that there's few lands in the game.
-		// im gay
 		let landData: String[][][][] = json.decode(tostring(data));
 		//print("TEST: " + json.encode(landData));
 		let land = this.Plots[plotIndex];
-		land.transform.Find("FarmName").gameObject.GetComponent<TMP_Text>()!.text = name + "'s farm";
 		land.transform.Find("ClaimSound").gameObject.GetComponent<AudioSource>()!.Play();
+
+		//get plot script
+		const plotScript = land.GetAirshipComponent<PlotScript>();
+		plotScript?.setOwner(name, id);
 
 		for (let cx = 0; cx <= 1; cx++) {
 			for (let cy = 0; cy <= 1; cy++) {
@@ -125,6 +146,98 @@ export default class PlotManager extends AirshipSingleton {
 					}
 				}
 			}
+		}
+	}
+
+	@Server()
+	public clickDirt(plotIndex: number, cx: number, cy: number, x: number, y: number, itemType: string, playerName: string): void {
+		if (Game.IsServer()) {
+			// check if player clicked same plot that he already owns
+			const plotData = json.decode(tostring(this.serverPlotData[plotIndex])) as {data: String, plotIndex: number, isFree: boolean, name: string};
+			const name = plotData.name;
+			if (name === playerName) {
+				print("SERVER: Player " + playerName + " owns plot #" + plotIndex + ".");
+			}
+
+			this.CLICK_DIRT_SIGNAL.server.FireAllClients({
+				plotIndex: plotIndex,
+				cx: cx,
+				cy: cy,
+				x: x,
+				y: y,
+				itemType: itemType,
+				item: "none",
+				playerName: playerName
+			});
+
+			// update crop data on server
+
+			const decodedData = json.decode(tostring(plotData.data)) as String[][][][];
+			const crop = json.decode(tostring(decodedData[cx][cy][x][y])) as string[] || {};
+			const isDigged = crop[1]
+			const isUnlocked = crop[0]
+
+			if (itemType === "Hoe" && isDigged === "notDigged" && isUnlocked === "unlocked") {
+				crop[1] = "digged";
+				//print("SERVER: Made crop digged at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
+
+				decodedData[cx][cy][x][y] = json.encode(crop);
+				plotData.data = json.encode(decodedData);
+
+				this.serverPlotData[plotIndex] = json.encode(plotData);
+			}
+
+			if (isDigged === "digged" && isUnlocked === "unlocked" && itemType === "CarrotSeed") {
+				crop[1] = "notDigged";
+
+				print("SERVER: Got carrot seed at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
+				crop[2] = "Carrot";
+				crop[3] = "30"; // carrot time to grow
+
+				decodedData[cx][cy][x][y] = json.encode(crop);
+				plotData.data = json.encode(decodedData);
+
+				this.serverPlotData[plotIndex] = json.encode(plotData);
+
+				this.sendCropSignal(plotIndex, cx, cy, x, y, [crop[0], crop[1], "Carrot", crop[3]]);
+			}
+		}
+	}
+
+	@Client()
+	public sendDirtSignal(plotIndex: number, cx: number, cy: number, x: number, y: number, itemType: string, crop: string, playerName: string): void {
+		if (Game.IsClient()) {
+			// check if player is plot owner
+			const plotOwner = this.Plots[plotIndex].GetAirshipComponent<PlotScript>()?.getOwnerId();
+			print("Got playername: " + playerName + " and plot owner: " + plotOwner);
+			if (plotOwner === playerName) {
+				print("CLIENT: Player " + playerName + " owns plot #" + plotIndex + ".");
+				
+				this.CLICK_DIRT_SIGNAL.client.FireServer({
+					plotIndex: plotIndex,
+					cx: cx,
+					cy: cy,
+					x: x,
+					y: y, 
+					itemType: itemType,
+					item: crop,
+					playerName: playerName
+				});
+			}
+		}
+	}
+
+	@Server()
+	public sendCropSignal(plotIndex: number, cx: number, cy: number, x: number, y: number, crop: string[]): void {
+		if (Game.IsServer()) {
+			this.CROP_SIGNAL.server.FireAllClients({
+				plotIndex: plotIndex,
+				cx: cx,
+				cy: cy,
+				x: x,
+				y: y,
+				crop: crop
+			});
 		}
 	}
 
@@ -159,7 +272,7 @@ export default class PlotManager extends AirshipSingleton {
 				}
 
 				print("SERVER: Land data: " + json.encode(landData));
-				this.SIGNAL_LOAD_LAND.server.FireClient(player, {data: json.encode(landData), plotIndex: data.plotIndex, name: data.name});
+				this.SIGNAL_LOAD_LAND.server.FireClient(player, {data: json.encode(landData), plotIndex: data.plotIndex, name: data.name, id: player.userId});
 			}
 		});
 
@@ -189,15 +302,21 @@ export default class PlotManager extends AirshipSingleton {
 					print("SERVER: Plot is available, claiming it...");
 
 					// Claim plot.
-					data.name = player.username;
-					this.serverPlotData[data.plotIndex] = json.encode({data: plot.data, plotIndex: data.plotIndex, isFree: false});
-					this.SIGNAL_LOAD_LAND.server.FireClient(player, {data: plot.data, plotIndex: data.plotIndex, name: data.name});
-					this.CLAIM_PLOT_SIGNAL.server.FireClient(player, {plotIndex: data.plotIndex});
+					data.name = player.userId;
+					this.serverPlotData[data.plotIndex] = json.encode({data: plot.data, plotIndex: data.plotIndex, isFree: false, name: player.userId});
+					this.SIGNAL_LOAD_LAND.server.FireAllClients({data: plot.data, plotIndex: data.plotIndex, name: player.username, id: player.userId});
+					this.CLAIM_PLOT_SIGNAL.server.FireAllClients({plotIndex: data.plotIndex, playerName: player.username});
 				} else {
 					print("SERVER: Plot is already claimed.");
 				}
 			}
         });
+
+		this.CLICK_DIRT_SIGNAL.server.OnClientEvent((player, data) => {
+			print("SERVER: Player " + player.userId + " clicked dirt at plot #" + data.plotIndex + " at (" + data.cx + ", " + data.cy + ") at (" + data.x + ", " + data.y + ").");
+
+			this.clickDirt(data.plotIndex, data.cx, data.cy, data.x, data.y, data.itemType, player.userId);
+		});
 	}
 
 	@Client()
@@ -208,15 +327,87 @@ export default class PlotManager extends AirshipSingleton {
 			print("CLIENT: CropManager received signal.");
 			print("CLIENT: Data: " + data.data);
 
-			this.SetUpLand(data.data, data.plotIndex, data.name);
+			this.SetUpLand(data.data, data.plotIndex, data.name, data.id);
 		});
 
 		this.CLAIM_PLOT_SIGNAL.client.OnServerEvent((data) => {
-			print("CLIENT: You claimed a plot " + data.plotIndex);
+			print("CLIENT: Player " + data.playerName + " claimed a plot #" + data.plotIndex);
 
 			// disable collider for this plot
 			const collider = this.Plots[data.plotIndex].GetComponent<BoxCollider>() as BoxCollider;
 			collider.enabled = false;
 		})
+
+		this.CLICK_DIRT_SIGNAL.client.OnServerEvent((data) => {
+			print("CLIENT: Player " + data.playerName + " clicked dirt at plot #" + data.plotIndex + " at (" + data.cx + ", " + data.cy + ") at (" + data.x + ", " + data.y + ").");
+
+			CropManager.Get().clickDirt(
+				data.plotIndex,
+				tonumber(data.cx) || 0,
+				tonumber(data.cy) || 0,
+				tonumber(data.x) || 0,
+				tonumber(data.y) || 0,
+				data.itemType,
+				data.item,
+			)
+		})
+
+		this.CROP_SIGNAL.client.OnServerEvent((data) => {
+			print("CLIENT: CropManager received crop signal.");
+			
+			CropManager.Get().setCrop(
+				data.plotIndex,
+				tonumber(data.cx) || 0,
+				tonumber(data.cy) || 0,
+				tonumber(data.x) || 0,
+				tonumber(data.y) || 0,
+				data.crop
+			)
+		})
+	}
+
+	private plotUpdateTimer = 0;
+	@Server()
+	private updatePlots(dt: number): void {
+		this.plotUpdateTimer += dt;
+
+		if (this.plotUpdateTimer >= 1) {
+			this.plotUpdateTimer = 0;
+
+			for (let i = 0; i < this.Plots.size(); i++) {
+				const plotData = json.decode(tostring(this.serverPlotData[i])) as {data: String, plotIndex: number, isFree: boolean, name: string};
+				const decodedData = json.decode(tostring(plotData.data)) as String[][][][];
+
+				for (let cx = 0; cx <= 1; cx++) {
+					for (let cy = 0; cy <= 1; cy++) {
+						for (let x = 0; x < 5; x++) {
+							for (let y = 0; y < 5; y++) {
+								const crop = json.decode(tostring(decodedData[cx][cy][x][y])) as string[] || {};
+
+								const plant = crop[2];
+
+								if (plant !== "none") {
+									let plantTime = crop[3]! || "0";
+									const num = tonumber(plantTime) || 0;
+
+									if (num > 0) {
+										crop[3] = tostring(num - 1);
+									} else {
+										return;
+									}
+
+									print("Plot #" + i + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ") has plant: " + plant + " and time to grow: " + crop[3]);
+
+									decodedData[cx][cy][x][y] = json.encode(crop);
+									plotData.data = json.encode(decodedData);
+
+									this.serverPlotData[i] = json.encode(plotData);
+								}
+							}
+						}
+					}
+				} 
+			}
+		}
 	}
 }
