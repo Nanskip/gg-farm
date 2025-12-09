@@ -3,6 +3,10 @@ import CropManager from "./CropManager";
 import { Game } from "@Easy/Core/Shared/Game";
 import CropTile from "Resources/Land/CropTile";
 import PlotScript from "Resources/Land/PlotScript";
+import { Airship } from "@Easy/Core/Shared/Airship";
+import { Player } from "@Easy/Core/Shared/Player/Player";
+import PlayerManager from "./PlayerManager";
+import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
 
 export default class PlotManager extends AirshipSingleton {
 
@@ -13,6 +17,7 @@ export default class PlotManager extends AirshipSingleton {
 	// SIGNALS
 	private SIGNAL_LOAD_LAND = new NetworkSignal<{data: String, plotIndex: number, name: string, id: string}>("LOAD_LAND");
 	private CLAIM_PLOT_SIGNAL = new NetworkSignal<{plotIndex: number, playerName: string}>("CLAIM_PLOT");
+	private GET_ITEM_SIGNAL = new NetworkSignal<{item: string, playerName: string, itemName: string}>("GET_ITEM");
 
 	private CLICK_DIRT_SIGNAL = new NetworkSignal<{
 		plotIndex: number,
@@ -26,6 +31,9 @@ export default class PlotManager extends AirshipSingleton {
 		("CLICK_DIRT");
 
 	private CROP_SIGNAL = new NetworkSignal<{plotIndex: number, cx: number, cy: number, x: number, y: number, crop: string[]}>("CROP");
+	private CROP_FINISH_SIGNAL = new NetworkSignal<{plotIndex: number, cx: number, cy: number, x: number, y: number, crop: string[]}>("CROP_FINISH");
+
+	private SYNC_LANDS_SIGNAL = new NetworkSignal<{data: String, plotIndex: number, name: string, id: string}>("SYNC_LANDS");
 
 	override Start(): void {
 		// -- SERVER --
@@ -118,14 +126,29 @@ export default class PlotManager extends AirshipSingleton {
 	}
 
 	@Client()
-	public SetUpLand(data: String, plotIndex: number, name: string, id: string): void {
+	public SetUpLand(data: String, plotIndex: number, name: string, id: string, isFree: boolean = false): void {
+		if (isFree) {
+			print("CLIENT: Land #" + plotIndex + " is free, doing nothing.");
+
+			return;
+		}
 		print("CLIENT: Setting up land for player " + name + ".");
 		//print("CLIENT: Data: " + data);
 
 		let landData: String[][][][] = json.decode(tostring(data));
 		//print("TEST: " + json.encode(landData));
 		let land = this.Plots[plotIndex];
+
+		if (land === undefined) {
+			print("CLIENT: Land " + plotIndex + " does not exist.");
+
+			return;
+		}
 		land.transform.Find("ClaimSound").gameObject.GetComponent<AudioSource>()!.Play();
+
+		if (name === Game.localPlayer.username || name === Game.localPlayer.userId) {
+			PlayerManager.Get().setPlayerPlotIndex(plotIndex);
+		}
 
 		//get plot script
 		const plotScript = land.GetAirshipComponent<PlotScript>();
@@ -177,14 +200,47 @@ export default class PlotManager extends AirshipSingleton {
 			const isDigged = crop[1]
 			const isUnlocked = crop[0]
 
+			print("Crop data: [" + crop[0] + ", " + crop[1] + ", " + crop[2] + ", " + crop[3] + "]");
+
 			if (itemType === "Hoe" && isDigged === "notDigged" && isUnlocked === "unlocked") {
-				crop[1] = "digged";
-				//print("SERVER: Made crop digged at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
+				if (crop[2] === "none") {
+					crop[1] = "digged";
+					//print("SERVER: Made crop digged at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
 
-				decodedData[cx][cy][x][y] = json.encode(crop);
-				plotData.data = json.encode(decodedData);
+					decodedData[cx][cy][x][y] = json.encode(crop);
+					plotData.data = json.encode(decodedData);
 
-				this.serverPlotData[plotIndex] = json.encode(plotData);
+					this.serverPlotData[plotIndex] = json.encode(plotData);
+				} else {
+					print("SERVER: Plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ") already has a crop with grow time: " + crop[3]);
+
+					// check if crop already grew fully
+					if (crop[3] === "-1") {
+						print("SERVER: Crop at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ") has already grown fully.");
+					} else {
+						// if it hasn't, do nothing.
+
+						return;
+					}
+
+					// remove crop, add randomized item in inventory
+
+					// find player that sent signal
+					print("Player " + playerName + " sent signal to get item: " + crop[2]);
+					const itemName = PlayerManager.Get().generateRandomWeight(crop[2]);
+					this.GET_ITEM_SIGNAL.server.FireAllClients({item: crop[2], playerName: playerName, itemName: itemName});
+
+					crop[1] = "notDigged";
+					crop[2] = "none";
+					crop[3] = "0";
+
+					decodedData[cx][cy][x][y] = json.encode(crop);
+					plotData.data = json.encode(decodedData);
+
+					this.serverPlotData[plotIndex] = json.encode(plotData);
+
+					this.sendCropSignal(plotIndex, cx, cy, x, y, [crop[0], crop[1], crop[2], crop[3]]);
+				}
 			}
 
 			if (isDigged === "digged" && isUnlocked === "unlocked" && itemType === "CarrotSeed") {
@@ -192,7 +248,12 @@ export default class PlotManager extends AirshipSingleton {
 
 				print("SERVER: Got carrot seed at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
 				crop[2] = "Carrot";
-				crop[3] = "30"; // carrot time to grow
+				crop[3] = "10"; // carrot time to grow
+				Airship.Characters.ObserveCharacters((character) => {
+					if (character.player?.userId === playerName) {
+						character.inventory?.Decrement("CarrotSeed", 1);
+					}
+				});
 
 				decodedData[cx][cy][x][y] = json.encode(crop);
 				plotData.data = json.encode(decodedData);
@@ -238,6 +299,18 @@ export default class PlotManager extends AirshipSingleton {
 				y: y,
 				crop: crop
 			});
+		}
+	}
+
+	@Server()
+	public sendSyncLandsSignal(player: Player): void {
+		if (Game.IsServer()) {
+			for (let i = 0; i < this.Plots.size(); i++) {
+				const plotData = json.decode(tostring(this.serverPlotData[i])) as {data: String, plotIndex: number, isFree: boolean, name: string};
+				const decodedData = json.decode(tostring(plotData.data)) as String[][][][];
+
+				this.SYNC_LANDS_SIGNAL.server.FireClient(player, {data: json.encode(decodedData), plotIndex: plotData.plotIndex, name: plotData.name, id: plotData.name});
+			}
 		}
 	}
 
@@ -364,6 +437,43 @@ export default class PlotManager extends AirshipSingleton {
 				data.crop
 			)
 		})
+
+		this.CROP_FINISH_SIGNAL.client.OnServerEvent((data) => {
+			print("CLIENT: CropManager received crop finish signal.");
+
+			CropManager.Get().setCropFinish(
+				data.plotIndex,
+				tonumber(data.cx) || 0,
+				tonumber(data.cy) || 0,
+				tonumber(data.x) || 0,
+				tonumber(data.y) || 0,
+				data.crop
+			)
+		})
+
+		this.SYNC_LANDS_SIGNAL.client.OnServerEvent((data) => {
+			if (data.name === "none"){
+				this.SetUpLand(data.data, data.plotIndex-1, data.name, data.id, true);
+			} else {
+				this.SetUpLand(data.data, data.plotIndex-1, data.name, data.id);
+			}
+		})
+
+		this.GET_ITEM_SIGNAL.client.OnServerEvent((data) => {
+			PlayerManager.Get().registerNewInventoryItem(data.item, data.itemName);
+			
+			// give this item to the player
+			Airship.Characters.ObserveCharacters((character) => {
+				character.inventory?.AddItem(new ItemStack(data.itemName, 1));
+
+				if (character.player?.userId !== data.playerName) {
+					// remove item from inventory
+					character.inventory?.Decrement(data.itemName, 1);
+				}
+			});
+
+			print("Got item: " + data.item + " with name: " + data.itemName);
+		})
 	}
 
 	private plotUpdateTimer = 0;
@@ -392,11 +502,13 @@ export default class PlotManager extends AirshipSingleton {
 
 									if (num > 0) {
 										crop[3] = tostring(num - 1);
-									} else {
-										return;
-									}
+										
+										print("Plot #" + i + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ") has plant: " + plant + " and time to grow: " + crop[3]);
+									} else if (num === 0) {
+										this.CROP_FINISH_SIGNAL.server.FireAllClients({plotIndex: i, cx: cx, cy: cy, x: x, y: y, crop: crop});
 
-									print("Plot #" + i + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ") has plant: " + plant + " and time to grow: " + crop[3]);
+										crop[3] = "-1";
+									}
 
 									decodedData[cx][cy][x][y] = json.encode(crop);
 									plotData.data = json.encode(decodedData);

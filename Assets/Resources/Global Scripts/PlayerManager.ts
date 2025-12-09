@@ -42,6 +42,18 @@ export default class PlayerManager extends AirshipSingleton {
                 character.inventory?.AddItem(new ItemStack("Hoe", 1));
                 character.inventory?.AddItem(new ItemStack("CarrotSeed", 15));
             });
+
+            // listen when player spawns
+            Airship.Players.ObservePlayers((newCharacter) => {
+                //Let the server and client sync
+                newCharacter.WaitForCharacter();
+                //Print their display name to the console
+                print("Player joined: " + newCharacter.username);
+
+                if (newCharacter === Game.localPlayer) {
+                    PlotManager.Get().sendSyncLandsSignal(newCharacter);
+                }
+            })
         }
 	}
 
@@ -64,19 +76,19 @@ export default class PlayerManager extends AirshipSingleton {
         Airship.Inventory.RegisterItem("Carrot", {
             displayName: "Carrot",
             accessoryPaths: ["Assets/Resources/ItemPrefabs/TestItem.prefab"],
-            image: "Assets/Resources/ItemPrefabs/cat.png",
+            //image: "Assets/Resources/ItemPrefabs/cat.png",
         });
 
         Airship.Inventory.RegisterItem("Hoe", {
             displayName: "Hoe",
             accessoryPaths: ["Assets/Resources/ItemPrefabs/TestHoe.prefab"],
-            image: "Assets/Resources/ItemPrefabs/cat.png",
+            //image: "Assets/Resources/ItemPrefabs/cat.png",
         });
 
         Airship.Inventory.RegisterItem("CarrotSeed", {
             displayName: "Carrot Seed",
             accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
-            image: "Assets/Resources/ItemPrefabs/cat.png",
+            //image: "Assets/Resources/ItemPrefabs/cat.png",
         });
     }
 
@@ -113,6 +125,7 @@ export default class PlayerManager extends AirshipSingleton {
                 if (picked.tag === "Dirt") {
                     const dirtData = picked?.gameObject.GetAirshipComponent<CropTile>()?.getCoords() as String[];
                     const distanceToPlayer = Vector3.Distance(Game.localPlayer.character!.transform.position, picked.transform.position);
+                    const cropScript = picked?.gameObject.GetAirshipComponent<CropTile>();
 
                     if (distanceToPlayer > 1.5) {
                         return;
@@ -129,16 +142,19 @@ export default class PlayerManager extends AirshipSingleton {
                         item = itemStack?.itemDef.itemType || "none";
                     });
 
-                    PlotManager.Get().sendDirtSignal(
-                        this.yourPlotIndex,
-                        tonumber(dirtData[1]) || 0,
-                        tonumber(dirtData[2]) || 0,
-                        tonumber(dirtData[3]) || 0,
-                        tonumber(dirtData[4]) || 0,
-                        item,
-                        "none",
-                        Game.localPlayer.userId
-                    )
+                    const cropPlotIndex = tonumber(cropScript?.getCoords()[0]) || 0;
+                    if (cropPlotIndex === this.yourPlotIndex) {
+                        PlotManager.Get().sendDirtSignal(
+                            this.yourPlotIndex,
+                            tonumber(dirtData[1]) || 0,
+                            tonumber(dirtData[2]) || 0,
+                            tonumber(dirtData[3]) || 0,
+                            tonumber(dirtData[4]) || 0,
+                            item,
+                            "none",
+                            Game.localPlayer.userId
+                        )
+                    }
 
                     const dirtPos = picked.transform.position;
                     const characterPos = Game.localPlayer.character!.transform.position;
@@ -174,17 +190,31 @@ export default class PlayerManager extends AirshipSingleton {
     // ONLY FOR WEIGHT ITEM CLARIFICATION AND CREATION
     // (Carrot -> Carrot [50g], Carrot -> Carrot [100g] etc.)
 
-    public registerNewInventoryItem(itemTypeBase: string, newName: string, newImage: string, amount: number = 1): void {
+    public registerNewInventoryItem(itemTypeBase: string, newName: string, amount: number = 1): void {
         // Register a new item type to make sure there's a lot of variants of weights for items
         Airship.Inventory.RegisterItem(newName, {
             displayName: newName,
             accessoryPaths: ["Assets/Resources/ItemPrefabs/TestItem.prefab"],
-            image: newImage,
         });
+
+        print("Registered new item: " + newName);
     }
 
     public getCameraRig(): GameObject {
         return this.cameraRig;
+    }
+
+    public setPlayerPlotIndex(plotIndex: number): void {
+        this.yourPlotIndex = plotIndex;
+    }
+
+    public generateRandomWeight(name: string): string {
+        const randomWeight = math.random(30, 150);
+        const weightText = name + " [" + randomWeight + "g]";
+
+        this.registerNewInventoryItem(name, weightText, 1);
+
+        return weightText;
     }
 }
 

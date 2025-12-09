@@ -26,6 +26,7 @@ export default class CropManager extends AirshipSingleton {
 	public cropPrefabs: GameObject[] = [];
 	public cropTimerPrefab: GameObject;
 	public DiggedMaterial: Material;
+	public Material: Material;
 
 	@Client()
 	public clickDirt(plotIndex: number, cx: number, cy: number, x: number, y: number, eventType: string, crop: string): void {
@@ -60,8 +61,25 @@ export default class CropManager extends AirshipSingleton {
 		dirtScript?._UPDATE(true, crop[1], true, true);
 
 		print("Crop: " + crop[2]);
+
+		if (crop[2] === "none") {
+			dirtScript?._DIG(false);
+			dirtScript?._UNHARVEST();
+			dirtScript?._UPDATE(false, crop[1], true, true);
+
+			return;
+		}
 		if (crop[2] === "Carrot") {
 			dirtScript?.createCropPrefab(this.cropPrefabs[0], this.cropTimerPrefab, tostring(crop[3]));
 		}
+	}
+
+	@Client()
+	public setCropFinish(plotIndex: number, cx: number, cy: number, x: number, y: number, crop: string[]): void {
+		const plot = this.Plots[plotIndex];
+		const dirt = plot.transform.Find("Dirt_" + cx + "_" + cy).transform.Find("CropTile_" + x + "_" + y);
+		const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
+
+		dirtScript?._FINISH();
 	}
 }
