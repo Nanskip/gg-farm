@@ -75,7 +75,13 @@ export default class PlayerManager extends AirshipSingleton {
         // Register a new item type
         Airship.Inventory.RegisterItem("Carrot", {
             displayName: "Carrot",
-            accessoryPaths: ["Assets/Resources/ItemPrefabs/TestItem.prefab"],
+            accessoryPaths: ["Assets/Resources/ItemPrefabs/Carrot.prefab"],
+            //image: "Assets/Resources/ItemPrefabs/cat.png",
+        });
+
+        Airship.Inventory.RegisterItem("Potato", {
+            displayName: "Potato",
+            accessoryPaths: ["Assets/Resources/ItemPrefabs/Potato.prefab"],
             //image: "Assets/Resources/ItemPrefabs/cat.png",
         });
 
@@ -87,6 +93,12 @@ export default class PlayerManager extends AirshipSingleton {
 
         Airship.Inventory.RegisterItem("CarrotSeed", {
             displayName: "Carrot Seed",
+            accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
+            //image: "Assets/Resources/ItemPrefabs/cat.png",
+        });
+
+        Airship.Inventory.RegisterItem("PotatoSeed", {
+            displayName: "Potato Seed",
             accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
             //image: "Assets/Resources/ItemPrefabs/cat.png",
         });
@@ -109,7 +121,6 @@ export default class PlayerManager extends AirshipSingleton {
                 if(key === "hoeDigged"){
                     this.hoeDigSound?.Play();
                 }
-                print("Event: " + key);
             })
 
 
@@ -179,7 +190,7 @@ export default class PlayerManager extends AirshipSingleton {
 
                     if (item === "Hoe") {
                         Game.localPlayer.character?.animationHelper.PlayAnimation(this.hoeDigAnim!, CharacterAnimationLayer.OVERRIDE_1, 0.1);
-                    } else if (item === "CarrotSeed") {
+                    } else if (item === "CarrotSeed" || item === "PotatoSeed") {
                         Game.localPlayer.character?.animationHelper.PlayAnimation(this.seedAnim!, CharacterAnimationLayer.OVERRIDE_1, 0.1);
                     }
                 }
@@ -194,7 +205,7 @@ export default class PlayerManager extends AirshipSingleton {
         // Register a new item type to make sure there's a lot of variants of weights for items
         Airship.Inventory.RegisterItem(newName, {
             displayName: newName,
-            accessoryPaths: ["Assets/Resources/ItemPrefabs/TestItem.prefab"],
+            accessoryPaths: ["Assets/Resources/ItemPrefabs/" + itemTypeBase + ".prefab"],
         });
 
         print("Registered new item: " + newName);

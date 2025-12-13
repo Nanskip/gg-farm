@@ -7,6 +7,7 @@ import { Airship } from "@Easy/Core/Shared/Airship";
 import { Player } from "@Easy/Core/Shared/Player/Player";
 import PlayerManager from "./PlayerManager";
 import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
+import { getPlantSeedName, getPlantName, getPlant, Plants } from "./PlantList"
 
 export default class PlotManager extends AirshipSingleton {
 
@@ -243,15 +244,20 @@ export default class PlotManager extends AirshipSingleton {
 				}
 			}
 
-			if (isDigged === "digged" && isUnlocked === "unlocked" && itemType === "CarrotSeed") {
+			const isSeed = (string.match(itemType, "Seed$"));
+			const isSeedCheck = (isSeed as string[])[0] === "Seed";
+
+			if (isDigged === "digged" && isUnlocked === "unlocked" && isSeedCheck) {
 				crop[1] = "notDigged";
 
-				print("SERVER: Got carrot seed at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
-				crop[2] = "Carrot";
-				crop[3] = "10"; // carrot time to grow
+				const cropName = getPlantName(itemType);
+				print("SERVER: Got " + cropName + " seed at plot #" + plotIndex + " at (" + cx + ", " + cy + ") at (" + x + ", " + y + ").");
+				crop[2] = cropName;
+				crop[3] = tostring(getPlant(cropName)!.growTime); // crop time to grow
+
 				Airship.Characters.ObserveCharacters((character) => {
 					if (character.player?.userId === playerName) {
-						character.inventory?.Decrement("CarrotSeed", 1);
+						character.inventory?.Decrement(itemType, 1);
 					}
 				});
 
@@ -260,7 +266,7 @@ export default class PlotManager extends AirshipSingleton {
 
 				this.serverPlotData[plotIndex] = json.encode(plotData);
 
-				this.sendCropSignal(plotIndex, cx, cy, x, y, [crop[0], crop[1], "Carrot", crop[3]]);
+				this.sendCropSignal(plotIndex, cx, cy, x, y, [crop[0], crop[1], cropName, crop[3]]);
 			}
 		}
 	}
