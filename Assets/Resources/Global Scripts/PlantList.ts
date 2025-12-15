@@ -42,3 +42,7 @@ export function getPlantSeedName(name: string) {
 export function getPlantName(seedName: string) {
 	return string.gsub(seedName, "Seed$", "")[0];
 }
+
+export function isACrop(name: string) {
+	return getPlant(name) !== undefined;
+}

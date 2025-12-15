@@ -4,6 +4,9 @@ import { Game } from "@Easy/Core/Shared/Game";
 import { getPlantSeedName, getPlantName, getPlant, Plants } from "./PlantList"
 import PlantPrefabs from "./PlantPrefabs";
 import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
+import MoneyManager from "./MoneyManager";
+import { Airship } from "@Easy/Core/Shared/Airship";
+import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
 
 export default class ShopScript extends AirshipSingleton {
 	public prompt: ProximityPrompt;
@@ -35,8 +38,11 @@ export default class ShopScript extends AirshipSingleton {
 	private clientStockData: Map<string, number> = new Map<string, number>();
 
 	private serverCropStock: Map<string, number> = new Map<string, number>();
-	private SIGNAL_SYNC_CROP_STOCK = new NetworkSignal<{stock_Map: Map<string, number>}>("SYNC_CROP_STOCK");
+	private SIGNAL_SYNC_CROP_STOCK = new NetworkSignal<{nameTable: string[], amountTable: number[]}>("SYNC_CROP_STOCK");
 	private SIGNAL_ASK_SYNC = new NetworkSignal("ASK_SYNC");
+
+	private SIGNAL_ASK_PURCHASE_SEED_PACK = new NetworkSignal<{cropName: string}>("ASK_PURCHASE_SEED_PACK");
+	private SIGNAL_PURCHASE_SEED_PACK = new NetworkSignal<{cropName: string, playerName: string}>("PURCHASE_SEED_PACK");
 
 	private sync_timer = 0;
 
@@ -65,14 +71,66 @@ export default class ShopScript extends AirshipSingleton {
 			this.closeShop();
 
 			this.SIGNAL_SYNC_CROP_STOCK.client.OnServerEvent((data) => {
-				this.clientStockData = data.stock_Map;
+				// decompile 2 different arrays into a map
+				print(data.amountTable)
+				print(data.nameTable)
+
+				for (let i = 0; i < data.nameTable.size(); i++) {
+					this.clientStockData.set(data.nameTable[i], data.amountTable[i]);
+
+					print("ShopScript: Client stock data: " + data.nameTable[i] + ": " + data.amountTable[i]);
+				}
+			});
+
+			this.SIGNAL_PURCHASE_SEED_PACK.client.OnServerEvent((data) => {
+				print("CLIENT: Player " + data.playerName + " purchased seed pack: " + data.cropName);
+
+				Airship.Characters.ObserveCharacters((character) => {
+					if (character.player?.userId === data.playerName) {
+						character.inventory?.AddItem(new ItemStack(getPlantSeedName(data.cropName), 1));
+					}
+				});
 			});
 		}
 
 		if (Game.IsServer()) {
 			this.SIGNAL_ASK_SYNC.server.OnClientEvent((player) => {
-				this.SIGNAL_SYNC_CROP_STOCK.server.FireClient(player, {stock_Map: this.serverCropStock});
+				// compile map into 2 different arrays
+				let nameTable: string[] = [];
+				let amountTable: number[] = [];
+
+				this.serverCropStock.forEach((value, key) => {
+					nameTable[nameTable.size()] = key;
+					amountTable[amountTable.size()] = value;
+
+					print("ShopScript: Server stock data: " + key + ": " + value);
+				});
+
+				this.SIGNAL_SYNC_CROP_STOCK.server.FireClient(player, {
+					nameTable: nameTable,
+					amountTable: amountTable
+				});
 			});
+
+			this.SIGNAL_ASK_PURCHASE_SEED_PACK.server.OnClientEvent((player, data) => {
+				print("SERVER: Player " + player.userId + " asked to purchase seed pack: " + data.cropName);
+
+				let isAvailable = this.serverCropStock.has(data.cropName);
+				isAvailable = isAvailable && this.serverCropStock.get(data.cropName)! > 0;
+				isAvailable = isAvailable && MoneyManager.Get().getMoneyServer(player) >= getPlant(data.cropName)!.seedPrice
+
+				if (isAvailable) {
+					print("SERVER: Crop " + data.cropName + " for " + player.username + " is available, purchasing...");
+
+					this.SIGNAL_PURCHASE_SEED_PACK.server.FireAllClients({cropName: data.cropName, playerName: player.userId});
+
+					this.serverCropStock.set(data.cropName, this.serverCropStock.get(data.cropName)! - 1);
+
+					MoneyManager.Get().addMoneyServer((-getPlant(data.cropName)!.seedPrice) || 0, player);	
+				}
+			});
+			
+			this.initializeCropStock();
 		}
 	}
 
@@ -86,6 +144,8 @@ export default class ShopScript extends AirshipSingleton {
 			if (this.sync_timer >= 5) {
 				this.sync_timer = 0;
 				this.SIGNAL_ASK_SYNC.client.FireServer();
+
+				print("ShopScript: Syncing crop stock...");
 			}
 		}
 	}
@@ -112,6 +172,7 @@ export default class ShopScript extends AirshipSingleton {
 	setCrop(name: string): void {
 		print("ShopScript: setCrop: " + name);
 		this.sync_timer = 9999;
+		print("ShopScript: Syncing crop stock...");
 
 		const crop = getPlant(name);
 
@@ -121,7 +182,7 @@ export default class ShopScript extends AirshipSingleton {
 		this.crop_weight.text = "Weight: " + tostring(crop!.averageWeight) + "g";
 		this.crop_description.text = crop!.description;
 
-		this.crop_stock.text = tostring(this.clientStockData.get(getPlantSeedName(crop!.name)));
+		this.crop_stock.text = tostring(this.clientStockData.get(crop!.name));
 
 		if (this.crop_3d !== undefined) {
 			Destroy(this.crop_3d);
@@ -158,9 +219,9 @@ export default class ShopScript extends AirshipSingleton {
 
 	@Client()
 	askToPurchaseSeedPack(seedName: string): void {
-		print("ShopScript: askToPurchaseSeedPack: " + seedName);
+		print("ShopScript: Asking server to purchase seed pack: " + seedName);
 
-
+		this.SIGNAL_ASK_PURCHASE_SEED_PACK.client.FireServer({cropName: seedName});
 	};
 
 	@Server()

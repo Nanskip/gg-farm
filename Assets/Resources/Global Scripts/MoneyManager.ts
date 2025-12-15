@@ -71,14 +71,8 @@ export default class MoneyManager extends AirshipSingleton {
 
 		this.addMoneySignal.server.OnClientEvent((player, data) => {
 			print("SERVER: Add money.")
-			if (!this.serverMoneyStorage.has(player.userId)) {
-				this.initPlayerMoney(player);
-			}
-			const availableMoney = this.serverMoneyStorage.get(player.userId) || 0;
 
-			this.serverMoneyStorage.set(player.userId, availableMoney + data.amount);
-
-			this.MONEY_SYNC.server.FireClient(player, {amount: this.serverMoneyStorage.get(player.userId) || 0});
+			this.addMoneyServer(data.amount, player);
 		});
 	}
 
@@ -101,5 +95,26 @@ export default class MoneyManager extends AirshipSingleton {
 	@Client()
 	public addMoney(amount: number): void {
 		this.addMoneySignal.client.FireServer({amount: amount});
+	}
+
+	@Server()
+	public addMoneyServer(amount: number, player: Player): void {
+		if (!this.serverMoneyStorage.has(player.userId)) {
+			this.initPlayerMoney(player);
+		}
+		const availableMoney = this.serverMoneyStorage.get(player.userId) || 0;
+
+		this.serverMoneyStorage.set(player.userId, availableMoney + amount);
+
+		this.MONEY_SYNC.server.FireClient(player, {amount: this.serverMoneyStorage.get(player.userId) || 0});
+	}
+
+	@Server()
+	public getMoneyServer(player: Player): number {
+		if (!this.serverMoneyStorage.has(player.userId)) {
+			this.initPlayerMoney(player);
+		}
+
+		return this.serverMoneyStorage.get(player.userId) || 0;
 	}
 }

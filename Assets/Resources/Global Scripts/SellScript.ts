@@ -4,6 +4,7 @@ import { Airship } from "@Easy/Core/Shared/Airship";
 import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
 import { Game } from "@Easy/Core/Shared/Game";
 import MoneyManager from "./MoneyManager";
+import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 
 export default class SellScript extends AirshipBehaviour {
 	public prompt: ProximityPrompt;
@@ -12,10 +13,32 @@ export default class SellScript extends AirshipBehaviour {
 	public icon: Texture2D;
 	public sellSound: AudioSource;
 
+	private SIGNAL_DECREMENT_ITEM = new NetworkSignal<{item: string, playerName: string}>("SINGAL_DECREMENT_ITEM");
+
 	override Start(): void {
 		if (Game.IsClient()) {
 			this.prompt.onActivated.Connect(() => {
 				this.prepareSell();
+			});
+
+			this.SIGNAL_DECREMENT_ITEM.client.OnServerEvent((data) => {
+				print("CLIENT: Player " + data.playerName + " decremented item: " + data.item);
+
+				Airship.Characters.ObserveCharacters((character) => {
+					if (character.player?.userId === data.playerName) {
+						if (character.player?.userId !== Game.localPlayer?.userId) {
+							character.inventory?.Decrement(data.item, 1);
+						}
+					}
+				});
+			});
+		}
+
+		if (Game.IsServer()) {
+			this.SIGNAL_DECREMENT_ITEM.server.OnClientEvent((player, data) => {
+				print("SERVER: Player " + player.userId + " decremented item: " + data.item);
+
+				this.SIGNAL_DECREMENT_ITEM.server.FireAllClients({item: data.item, playerName: player.userId});
 			});
 		}
 	}
@@ -121,6 +144,8 @@ export default class SellScript extends AirshipBehaviour {
 
 				Game.localPlayer.character?.inventory?.Decrement(item, 1);
 
+				this.SIGNAL_DECREMENT_ITEM.client.FireServer({item: item, playerName: Game.localPlayer.userId});
+
 				totalPrice += money;
 			}
 		});
@@ -220,6 +245,8 @@ export default class SellScript extends AirshipBehaviour {
 			print("Carrot price: " + money);
 
 			Game.localPlayer.character?.inventory?.Decrement(item, 1);
+
+			this.SIGNAL_DECREMENT_ITEM.client.FireServer({item: item, playerName: Game.localPlayer.userId});
 
 			this.dialogue.writeText("Thank you! Here's your " + money + "$!", false, 2, 3);
 

@@ -1,6 +1,7 @@
 import { Game } from "@Easy/Core/Shared/Game";
 import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 import CropTile from "Resources/Land/CropTile";
+import { isACrop } from "./PlantList";
 
 export default class CropManager extends AirshipSingleton {
 	// CropManager is a singleton that manages crops.
@@ -69,8 +70,9 @@ export default class CropManager extends AirshipSingleton {
 
 			return;
 		}
-		if (crop[2] === "Carrot") {
-			dirtScript?.createCropPrefab(this.cropPrefabs[0], this.cropTimerPrefab, tostring(crop[3]));
+
+		if (isACrop(crop[2])) {
+			dirtScript?.createCropPrefab(this.findCropPrefab(crop[2]), this.cropTimerPrefab, crop[3]);
 		}
 	}
 
@@ -81,5 +83,16 @@ export default class CropManager extends AirshipSingleton {
 		const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
 
 		dirtScript?._FINISH();
+	}
+
+	@Client()
+	private findCropPrefab(name: string): GameObject {
+		for (const cropPrefab of this.cropPrefabs) {
+			if (cropPrefab.name === name) {
+				return cropPrefab;
+			}
+		}
+
+		return GameObject.Create();
 	}
 }
