@@ -30,6 +30,8 @@ export default class DialogueScript extends AirshipBehaviour {
 		this.Test();
 
 		this.icon.texture = this.iconTexture;
+
+		this.gameObject.GetComponent<RectTransform>()!.anchoredPosition = new Vector2(0, 230);
 	}
 
 	@Client()
@@ -182,7 +184,7 @@ export default class DialogueScript extends AirshipBehaviour {
 	Test(): void {
 		print("DialogueScript: Test");
 
-		this.writeText("Hello world! I love cats!", false, 2);
+		this.writeText("Hello world! I love cats!", false, 0, 0);
 		this.name.text = "CAT";
 
 		this.setVariant1("CAT!!!", () => {

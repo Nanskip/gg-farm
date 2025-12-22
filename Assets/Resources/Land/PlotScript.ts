@@ -47,6 +47,14 @@ export default class PlotScript extends AirshipBehaviour {
 	}
 
 	@Client()
+	setNilOwner(): void {
+		this.owner = "none";
+		this.ownerId = "none";
+
+		this.textComponent!.text = "Free farm";
+	}
+
+	@Client()
 	getOwner(): String {
 		return this.owner;
 	}

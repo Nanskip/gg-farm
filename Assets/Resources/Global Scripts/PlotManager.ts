@@ -8,6 +8,7 @@ import { Player } from "@Easy/Core/Shared/Player/Player";
 import PlayerManager from "./PlayerManager";
 import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
 import { getPlantSeedName, getPlantName, getPlant, Plants } from "./PlantList"
+import LoadingScreen from "./LoadingScreen";
 
 export default class PlotManager extends AirshipSingleton {
 
@@ -35,6 +36,7 @@ export default class PlotManager extends AirshipSingleton {
 	private CROP_FINISH_SIGNAL = new NetworkSignal<{plotIndex: number, cx: number, cy: number, x: number, y: number, crop: string[]}>("CROP_FINISH");
 
 	private SYNC_LANDS_SIGNAL = new NetworkSignal<{data: String, plotIndex: number, name: string, id: string}>("SYNC_LANDS");
+	private ASK_SYNC_LANDS_SIGNAL = new NetworkSignal("ASK_SYNC_LANDS");
 
 	override Start(): void {
 		// -- SERVER --
@@ -128,11 +130,6 @@ export default class PlotManager extends AirshipSingleton {
 
 	@Client()
 	public SetUpLand(data: String, plotIndex: number, name: string, id: string, isFree: boolean = false): void {
-		if (isFree) {
-			print("CLIENT: Land #" + plotIndex + " is free, doing nothing.");
-
-			return;
-		}
 		print("CLIENT: Setting up land for player " + name + ".");
 		//print("CLIENT: Data: " + data);
 
@@ -145,6 +142,40 @@ export default class PlotManager extends AirshipSingleton {
 
 			return;
 		}
+
+		if (isFree) {
+			print("CLIENT: Land #" + plotIndex + " is free, emptying it.");
+
+			for (let cx = 0; cx <= 1; cx++) {
+				for (let cy = 0; cy <= 1; cy++) {
+					for (let x = 0; x < 5; x++) {
+						for (let y = 0; y < 5; y++) {
+							const crop = json.decode(tostring(landData[cx][cy][x][y])) as string[] || {};
+							const dirtChunk = land.transform.Find("Dirt_" + cx + "_" + cy);
+							const dirt = dirtChunk.transform.Find("CropTile_" + x + "_" + y);
+
+							const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
+
+							dirtScript?.init(plotIndex, cx, cy, x, y);
+
+							dirtScript?._UPDATE(false, "", false, true);
+							dirtScript?._UPDATE_END();
+						}
+					}
+				}
+			}
+
+			//get plot script
+			const plotScript = land.GetAirshipComponent<PlotScript>();
+			plotScript?.setNilOwner();
+
+			// enable collider for this plot
+			const collider = this.Plots[plotIndex].GetComponent<BoxCollider>() as BoxCollider;
+			collider.enabled = true;
+
+			return;
+		}
+
 		land.transform.Find("ClaimSound").gameObject.GetComponent<AudioSource>()!.Play();
 
 		if (name === Game.localPlayer.username || name === Game.localPlayer.userId) {
@@ -166,7 +197,8 @@ export default class PlotManager extends AirshipSingleton {
 						const dirtScript = dirt?.gameObject.GetAirshipComponent<CropTile>();
 
 						dirtScript?.init(plotIndex, cx, cy, x, y);
-						dirtScript?._UPDATE(false, crop[1], !(crop[0] === "locked"));
+						dirtScript?._UPDATE(false, crop[1], !(crop[0] === "locked"), true);
+						dirtScript?._UPDATE_END();
 					}
 				}
 			}
@@ -320,6 +352,11 @@ export default class PlotManager extends AirshipSingleton {
 		}
 	}
 
+	@Client()
+	public askSyncLands(): void {
+		this.ASK_SYNC_LANDS_SIGNAL.client.FireServer();
+	}
+
 	@Server()
 	public ConnectServerSignals(): void {
 		// -- SERVER --
@@ -396,6 +433,44 @@ export default class PlotManager extends AirshipSingleton {
 
 			this.clickDirt(data.plotIndex, data.cx, data.cy, data.x, data.y, data.itemType, player.userId);
 		});
+
+		this.ASK_SYNC_LANDS_SIGNAL.server.OnClientEvent((player) => {
+			print("SERVER: Player " + player.userId + " asked to sync lands.");
+
+			this.sendSyncLandsSignal(player);
+		});
+
+		Airship.Players.onPlayerDisconnected.Connect((player) => {
+            print("SERVER: Player " + player.username + " disconnected");
+
+			// clear plot data, sync with clients
+			let landIndex = -1;
+			for (let i = 0; i < this.Plots.size(); i++) {
+				const plotData = json.decode(tostring(this.serverPlotData[i])) as {data: String, plotIndex: number, isFree: boolean, name: string};
+
+				if (plotData.name === player.userId) {
+					landIndex = i;
+				}
+			}
+
+			if (landIndex === -1) {
+				print("SERVER: Player " + player.username + " is not in any land.");
+
+				return;
+			}
+
+			// clear plot data at server
+			this.serverPlotData[landIndex] = json.encode({data: this.emptyLandData(), plotIndex: landIndex, isFree: true, name: "none"});
+
+		
+			const plotData = json.decode(tostring(this.serverPlotData[landIndex])) as {data: String, plotIndex: number, isFree: boolean, name: string};
+			this.SYNC_LANDS_SIGNAL.server.FireAllClients({
+				data: plotData.data,
+				plotIndex: plotData.plotIndex+1,
+				name: plotData.name,
+				id: plotData.name
+			});
+        });
 	}
 
 	@Client()
@@ -458,11 +533,15 @@ export default class PlotManager extends AirshipSingleton {
 		})
 
 		this.SYNC_LANDS_SIGNAL.client.OnServerEvent((data) => {
+			print("CLIENT: Synced land #" + data.plotIndex);
+
 			if (data.name === "none"){
 				this.SetUpLand(data.data, data.plotIndex-1, data.name, data.id, true);
 			} else {
 				this.SetUpLand(data.data, data.plotIndex-1, data.name, data.id);
 			}
+
+			LoadingScreen.Get().syncLands();
 		})
 
 		this.GET_ITEM_SIGNAL.client.OnServerEvent((data) => {

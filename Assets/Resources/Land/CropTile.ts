@@ -144,6 +144,7 @@ export default class CropTile extends AirshipBehaviour {
 		}
 
 		this.crop = Object.Instantiate(cropPrefab, this.transform.parent.transform.parent);
+		this.crop.transform.localScale = new Vector3(0, 0, 0);
 
 		this.crop.transform.position = this.transform.position;
 
@@ -177,7 +178,18 @@ export default class CropTile extends AirshipBehaviour {
 
 	@Client()
 	public init(index: number, cx: number, cy: number, x: number, y: number): void {
-		this.coords = {index: index, cx: cx, cy: cy, x: x, y: y};
+		this.coords = {
+			index: index,
+			cx: cx,
+			cy: cy,
+			x: x,
+			y: y
+		};
+
+		this._DIGGED = false;
+		this._CAN_HARVEST = false;
+		this._IS_PLANTED = false;
+		this._UNLOCKED = false;
 	}
 
 	@Client()

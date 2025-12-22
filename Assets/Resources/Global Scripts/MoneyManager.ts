@@ -4,6 +4,7 @@ import { Airship } from "@Easy/Core/Shared/Airship";
 import { Game } from "@Easy/Core/Shared/Game";
 import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 import { Player } from "@Easy/Core/Shared/Player/Player";
+import NotificationManager from "./NotificationManager";
 
 export default class MoneyManager extends AirshipSingleton {
 
@@ -15,6 +16,10 @@ export default class MoneyManager extends AirshipSingleton {
 	// userId: amount
 
 	private MONEY_SYNC = new NetworkSignal<{amount: number}>("MONEY_SYNC");
+
+	public settingsButton: Button;
+	public feedbackButton: Button;
+	public discordButton: Button;
 
 	override Start(): void {
 		if (Game.IsServer()) {
@@ -55,6 +60,19 @@ export default class MoneyManager extends AirshipSingleton {
 
 			print("CLIENT: Money sync.")
 		});
+
+
+		this.settingsButton.onClick.Connect(() => {
+			NotificationManager.Get().ShowNotification("In development...");
+		});
+
+		this.feedbackButton.onClick.Connect(() => {
+			NotificationManager.Get().ShowNotification("In development...");
+		});
+
+		this.discordButton.onClick.Connect(() => {
+			NotificationManager.Get().ShowNotification("In development...");
+		});
 	}
 
 	@Server()
@@ -78,7 +96,7 @@ export default class MoneyManager extends AirshipSingleton {
 
 	@Client()
 	public updateMoney(): void {
-		this.moneyText.text = "Money: " + tostring(this.localMoney);
+		this.moneyText.text = "$" + tostring(this.localMoney);
 		print("CLIENT: Money update: " + this.localMoney);
 	}
 

@@ -6,6 +6,8 @@ import { Mouse } from "@Easy/Core/Shared/UserInput";
 import CropManager from "./CropManager";
 import CropTile from "Resources/Land/CropTile";
 import PlotManager from "./PlotManager";
+import { getPlant } from "./PlantList";
+import { Player } from "@Easy/Core/Shared/Player/Player";
 
 export default class PlayerManager extends AirshipSingleton {
     private yourPlotIndex: number = 0;
@@ -23,6 +25,8 @@ export default class PlayerManager extends AirshipSingleton {
     private shouldStay = false;
     private stayPos: Vector3;
     private stayRot: Quaternion;
+
+    private SIGNAL_PLAYER_PLAY_ANIMATION = new NetworkSignal<{animationName: string, player: string, rotation: Quaternion, direction: Vector3}>("SIGNAL_PLAYER_PLAY_ANIMATION");
 
 	override Start(): void {
 		print("PlayerManager initialized.");
@@ -72,41 +76,59 @@ export default class PlayerManager extends AirshipSingleton {
     }
 
     public registerInventoryItems(): void {
-        // Register a new item type
-        Airship.Inventory.RegisterItem("Carrot", {
-            displayName: "Carrot",
-            accessoryPaths: ["Assets/Resources/ItemPrefabs/Carrot.prefab"],
-            //image: "Assets/Resources/ItemPrefabs/cat.png",
-        });
-
-        Airship.Inventory.RegisterItem("Potato", {
-            displayName: "Potato",
-            accessoryPaths: ["Assets/Resources/ItemPrefabs/Potato.prefab"],
-            //image: "Assets/Resources/ItemPrefabs/cat.png",
-        });
-
         Airship.Inventory.RegisterItem("Hoe", {
             displayName: "Hoe",
             accessoryPaths: ["Assets/Resources/ItemPrefabs/TestHoe.prefab"],
             //image: "Assets/Resources/ItemPrefabs/cat.png",
         });
+        // // Register a new item type
+        // Airship.Inventory.RegisterItem("Carrot", {
+        //     displayName: "Carrot",
+        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/Carrot.prefab"],
+        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
+        // });
 
-        Airship.Inventory.RegisterItem("CarrotSeed", {
-            displayName: "Carrot Seed",
-            accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
-            //image: "Assets/Resources/ItemPrefabs/cat.png",
-        });
+        // Airship.Inventory.RegisterItem("Potato", {
+        //     displayName: "Potato",
+        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/Potato.prefab"],
+        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
+        // });
 
-        Airship.Inventory.RegisterItem("PotatoSeed", {
-            displayName: "Potato Seed",
-            accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
-            //image: "Assets/Resources/ItemPrefabs/cat.png",
-        });
+        // Airship.Inventory.RegisterItem("Wheat", {
+        //     displayName: "Wheat",
+        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/Wheat.prefab"],
+        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
+        // });
+
+        // Airship.Inventory.RegisterItem("CarrotSeed", {
+        //     displayName: "Carrot Seed",
+        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
+        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
+        // });
+
+        // Airship.Inventory.RegisterItem("PotatoSeed", {
+        //     displayName: "Potato Seed",
+        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
+        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
+        // });
+
+        // Airship.Inventory.RegisterItem("WheatSeed", {
+        //     displayName: "Wheat Seed",
+        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
+        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
+        // });
+
+        // automate this thing instead of manually adding every item
+
     }
 
     @Server()
     private ConnectServerSignals(): void {
+        this.SIGNAL_PLAYER_PLAY_ANIMATION.server.OnClientEvent((player, data) => {
+            print("SERVER: Player " + data.player + " played animation: " + data.animationName);
 
+            this.SIGNAL_PLAYER_PLAY_ANIMATION.server.FireAllClients(data);
+        });
     }
 
     @Client()
@@ -170,16 +192,16 @@ export default class PlayerManager extends AirshipSingleton {
                     const dirtPos = picked.transform.position;
                     const characterPos = Game.localPlayer.character!.transform.position;
 
-                    const direction = Vector3.Normalize(
+                    const dir = Vector3.Normalize(
                         new Vector3(dirtPos.x - characterPos.x, 0, dirtPos.z - characterPos.z)
                     );
 
-                    const _lookRotation = Quaternion.LookRotation(direction);
+                    const _lookRotation = Quaternion.LookRotation(dir);
 
                     if (item !== "none") {
                         // rotate character towards clicked dirt
                         Game.localPlayer.character!.movement.graphicTransform.rotation = _lookRotation;
-                        Game.localPlayer.character!.movement.SetLookVector(direction);
+                        Game.localPlayer.character!.movement.SetLookVector(dir);
 
                         this.stayPos = Game.localPlayer.character!.movement.graphicTransform.position;
                         this.stayRot = Game.localPlayer.character!.movement.graphicTransform.rotation;
@@ -190,11 +212,48 @@ export default class PlayerManager extends AirshipSingleton {
 
                     if (item === "Hoe") {
                         Game.localPlayer.character?.animationHelper.PlayAnimation(this.hoeDigAnim!, CharacterAnimationLayer.OVERRIDE_1, 0.1);
+                        this.SIGNAL_PLAYER_PLAY_ANIMATION.client.FireServer({
+                            animationName: "HoeDig",
+                            player: Game.localPlayer.userId,
+                            rotation: Game.localPlayer.character!.movement.graphicTransform.rotation,
+                            direction: dir
+                        });
                     } else if (item === "CarrotSeed" || item === "PotatoSeed") {
                         Game.localPlayer.character?.animationHelper.PlayAnimation(this.seedAnim!, CharacterAnimationLayer.OVERRIDE_1, 0.1);
+                        this.SIGNAL_PLAYER_PLAY_ANIMATION.client.FireServer({
+                            animationName: "SeedPack",
+                            player: Game.localPlayer.userId,
+                            rotation: Game.localPlayer.character!.movement.graphicTransform.rotation,
+                            direction: dir
+                        });
                     }
                 }
             }
+        });
+
+        this.SIGNAL_PLAYER_PLAY_ANIMATION.client.OnServerEvent((data) => {
+            print("CLIENT: Player " + data.player + " played animation: " + data.animationName);
+
+            let animClip: AnimationClip;
+            if (data.animationName === "HoeDig") {
+                animClip = this.hoeDigAnim!;
+            } else if (data.animationName === "SeedPack") {
+                animClip = this.seedAnim!;
+            }
+
+            if (data.player === Game.localPlayer.userId) {
+                return;
+            }
+
+            const _lookRotation = Quaternion.LookRotation(data.direction);
+
+            Airship.Characters.ObserveCharacters((character) => {
+                if (character.player?.userId === data.player) {
+                    character.animationHelper.PlayAnimation(animClip, CharacterAnimationLayer.OVERRIDE_1, 0.1);
+
+                    character.movement.graphicTransform.rotation = _lookRotation
+                }
+            });
         });
     }
 
@@ -220,7 +279,10 @@ export default class PlayerManager extends AirshipSingleton {
     }
 
     public generateRandomWeight(name: string): string {
-        const randomWeight = math.random(30, 150);
+        const minWeight = getPlant(name)!.minWeight;
+        const maxWeight = getPlant(name)!.maxWeight;
+
+        const randomWeight = math.random(minWeight, maxWeight);
         const weightText = name + " [" + randomWeight + "g]";
 
         this.registerNewInventoryItem(name, weightText, 1);

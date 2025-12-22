@@ -7,7 +7,7 @@ export const Plants = {
 		minWeight: 30,
 		growTime: 10,
 		seedPrice: 3,
-		description: "A classic orange crunchy vegetable. Consumed raw or cooked, it's a staple in many dishes. It's also a good source of vitamin A and C.",
+		description: "A classic orange crunchy vegetable. Can be eaten raw or cooked and fits well in soups, salads, and main dishes. Simple, reliable, and widely used.",
 		name: "Carrot",
 		rarity: "Common",
     },
@@ -17,13 +17,24 @@ export const Plants = {
         averageWeight: 300,
 		maxWeight: 600,
 		minWeight: 170,
-		growTime: 25,
+		growTime: 20,
 		seedPrice: 8,
-		description: "Classic potato. A starchy tuber with a creamy texture. It's a versatile vegetable that can be used in many dishes. It's also a good source of fiber and vitamins.",
+		description: "A classic starchy tuber with a soft, filling texture when cooked. Extremely versatile: can be boiled, fried, baked, or mashed. A base ingredient for countless meals.",
 		name: "Potato",
 		rarity: "Common",
     },
 	
+	Wheat: {
+		price: 24,
+        averageWeight: 100,
+		maxWeight: 190,
+		minWeight: 70,
+		growTime: 35,
+		seedPrice: 17,
+		description: "A basic grain used to produce flour and many staple foods. Commonly processed into bread, pasta, and other baked goods. One of the most important crops in everyday cooking.",
+		name: "Wheat",
+		rarity: "Uncommon",
+    },
 } as const;
 
 export type PlantName = keyof typeof Plants;

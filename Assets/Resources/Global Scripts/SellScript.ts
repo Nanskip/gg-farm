@@ -5,6 +5,7 @@ import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
 import { Game } from "@Easy/Core/Shared/Game";
 import MoneyManager from "./MoneyManager";
 import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
+import { getPlant } from "./PlantList";
 
 export default class SellScript extends AirshipBehaviour {
 	public prompt: ProximityPrompt;
@@ -13,7 +14,7 @@ export default class SellScript extends AirshipBehaviour {
 	public icon: Texture2D;
 	public sellSound: AudioSource;
 
-	private SIGNAL_DECREMENT_ITEM = new NetworkSignal<{item: string, playerName: string}>("SINGAL_DECREMENT_ITEM");
+	private SIGNAL_DECREMENT_ITEM = new NetworkSignal<{item: string, playerName: string}>("SIGNAL_DECREMENT_ITEM");
 
 	override Start(): void {
 		if (Game.IsClient()) {
@@ -137,10 +138,9 @@ export default class SellScript extends AirshipBehaviour {
 			const cnum = tonumber(num) || 0;
 
 			if (cnum > 0) {
-				const money = math.round((cnum / 70) * 5);
-				// 70 is average grams of carrot
+				const money = math.round((cnum / getPlant(name)!.averageWeight) * getPlant(name)!.seedPrice);
 
-				print("Carrot price: " + money);
+				print("Crop price: " + money);
 
 				Game.localPlayer.character?.inventory?.Decrement(item, 1);
 
@@ -230,19 +230,20 @@ export default class SellScript extends AirshipBehaviour {
 
 		this.dialogue.hideVariants();
 
-		if (item === "CarrotSeed" || item === "Hoe") {
-			this.dialogue.writeText("Bro what? I can't buy that " + item + ".", false, 3, 3);
-		}
-
 		const raw = tostring(item);
 		const [name, num] = this.parseItem(raw);
 
-		const cnum = tonumber(num) || 0;
-		if (name === "Carrot") {
-			const money = math.round((cnum / 70) * 5);
-			// 70 is average grams of carrot
+		const canBuy = getPlant(name) !== undefined;
 
-			print("Carrot price: " + money);
+		if (!canBuy) {
+			this.dialogue.writeText("Bro what? I can't buy that " + item + ".", false, 3, 3);
+		}
+
+		const cnum = tonumber(num) || 0;
+		if (canBuy && cnum > 0) {
+			const money = math.round((cnum / getPlant(name)!.averageWeight) * getPlant(name)!.seedPrice);
+
+			print("Crop price: " + money);
 
 			Game.localPlayer.character?.inventory?.Decrement(item, 1);
 

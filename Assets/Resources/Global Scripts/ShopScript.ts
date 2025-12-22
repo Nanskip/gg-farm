@@ -7,12 +7,14 @@ import { NetworkSignal } from "@Easy/Core/Shared/Network/NetworkSignal";
 import MoneyManager from "./MoneyManager";
 import { Airship } from "@Easy/Core/Shared/Airship";
 import { ItemStack } from "@Easy/Core/Shared/Inventory/ItemStack";
+import MusicManager from "Resources/Music/MusicManager";
 
 export default class ShopScript extends AirshipSingleton {
 	public prompt: ProximityPrompt;
 	public dialogue: DialogueScript;
 
 	public icon: Texture2D;
+	public buttonClickSound: AudioSource;
 	public openShopSound: AudioSource;
 	public closeShopSound: AudioSource;
 	public shopWindow: GameObject;
@@ -45,6 +47,7 @@ export default class ShopScript extends AirshipSingleton {
 	private SIGNAL_PURCHASE_SEED_PACK = new NetworkSignal<{cropName: string, playerName: string}>("PURCHASE_SEED_PACK");
 
 	private sync_timer = 0;
+	private crop_Stock_Initialized = false;
 
 	override Start(): void {
 		if (Game.IsClient()) {
@@ -54,21 +57,29 @@ export default class ShopScript extends AirshipSingleton {
 
 			this.shopWindowCloseButton.onClick.Connect(() => {
 				this.closeShop();
+
+				this.buttonClickSound.Play();
 			});
 
 			this.shopScrollRight.onClick.Connect(() => {
 				this.scrollList(true);
+
+				this.buttonClickSound.Play();
 			});
 
 			this.shopScrollLeft.onClick.Connect(() => {
 				this.scrollList(false);
+
+				this.buttonClickSound.Play();
 			});
 
 			this.shopPurchaseSeedPackButton.onClick.Connect(() => {
 				this.askToPurchaseSeedPack(this.seedList[this.seedListIndex])
+
+				this.buttonClickSound.Play();
 			});
 
-			this.closeShop();
+			this.closeShop(true);
 
 			this.SIGNAL_SYNC_CROP_STOCK.client.OnServerEvent((data) => {
 				// decompile 2 different arrays into a map
@@ -129,11 +140,10 @@ export default class ShopScript extends AirshipSingleton {
 					MoneyManager.Get().addMoneyServer((-getPlant(data.cropName)!.seedPrice) || 0, player);	
 				}
 			});
-			
-			this.initializeCropStock();
 		}
 	}
 
+	@Header("Update")
 	override Update(dt: number): void {
 		if (Game.IsClient()) {
 			if (this.crop_3d_rotator !== undefined) {
@@ -148,6 +158,12 @@ export default class ShopScript extends AirshipSingleton {
 				print("ShopScript: Syncing crop stock...");
 			}
 		}
+
+		if (Game.IsServer()) {
+			if (!this.crop_Stock_Initialized) {
+				this.initializeCropStock();
+			}
+		}
 	}
 
 	@Client()
@@ -157,15 +173,22 @@ export default class ShopScript extends AirshipSingleton {
 		this.openShopSound.Play();
 
 		this.shopWindow.SetActive(true);
+		this.shopWindow.GetComponent<RectTransform>()!.anchoredPosition = new Vector2(0, 0);
 		this.setCrop("Carrot");
+
+		MusicManager.Get().setState("shop");
 	}
 
 	@Client()	
-	closeShop(): void {
+	closeShop(noSound: boolean = false): void {
 		print("Closing shop...");
 
 		this.shopWindow.SetActive(false);
-		this.closeShopSound.Play();
+		if (!noSound) {
+			this.closeShopSound.Play();
+		}
+		
+		MusicManager.Get().setState("ambient");
 	}
 
 	@Client()
@@ -188,7 +211,7 @@ export default class ShopScript extends AirshipSingleton {
 			Destroy(this.crop_3d);
 		}
 
-		this.crop_3d = Object.Instantiate(PlantPrefabs.Get().getPlantPrefab(crop!.name), this.crop_3d_parent.transform);
+		this.crop_3d = Object.Instantiate(PlantPrefabs.Get().getUiPlantPrefab(crop!.name), this.crop_3d_parent.transform);
 		this.crop_3d.layer = LayerMask.NameToLayer("UI");
 
 		// iterate through all children of crop_3d and set their layer to UI
@@ -227,6 +250,7 @@ export default class ShopScript extends AirshipSingleton {
 	@Server()
 	initializeCropStock(): void {
 		print("SERVER: ShopScript: initializeCropStock");
+		this.crop_Stock_Initialized = true;
 
 		// fill crop stock with all seed names with 50 seeds
 		for (const [key, value] of pairs(Plants)) {
