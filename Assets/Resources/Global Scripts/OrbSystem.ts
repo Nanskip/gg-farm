@@ -40,7 +40,7 @@ export default class OrbSystem extends AirshipSingleton {
 	private orbTimer = 0;
 	private orbProcessTimer = 0;
 
-	private maxOrbs = 10 as const;
+	private maxOrbs = 20 as const;
 
 	override Update(dt: number): void {
 		if (Game.IsClient()) {
@@ -56,7 +56,7 @@ export default class OrbSystem extends AirshipSingleton {
 		if (Game.IsServer()) {
 			this.orbTimer += dt;
 
-			if (this.orbTimer >= 1 && ObjectUtils.keys(this.serverOrbCoords).size() < this.maxOrbs) {
+			if (this.orbTimer >= 3 && ObjectUtils.keys(this.serverOrbCoords).size() < this.maxOrbs) {
 				this.randOrbPos();
 
 				this.orbTimer = 0;

@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 2832333325665146811}
   - component: {fileID: 2349092717918151700}
   - component: {fileID: 6281460510419916316}
-  - component: {fileID: 8020391517269490633}
+  - component: {fileID: 3927770857356921082}
   m_Layer: 0
   m_Name: OrbPrefab
   m_TagString: Untagged
@@ -109,7 +109,7 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8020391517269490633
+--- !u!114 &3927770857356921082
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -121,9 +121,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa4feffba88dce746a2607f0ec6233b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  guid: 009f420c-702b-47f4-9cf4-7501e922683b
-  script: {fileID: 2335171973813347264, guid: 3644c6d05313539428ca2a2e01373198, type: 3}
-  scriptPath: Assets/Resources/Global Materials/InWorld/OrbScript.lua
+  guid: 57a636a2-c719-449f-ae85-550dea5d51b9
+  script: {fileID: 4393961940727552276, guid: 3644c6d05313539428ca2a2e01373198, type: 3}
+  scriptPath: Assets/Resources/Global Materials/Orb/OrbScript.lua
   forceContext: 0
   metadata:
     name: OrbScript
