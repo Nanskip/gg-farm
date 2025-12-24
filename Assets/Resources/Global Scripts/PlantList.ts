@@ -25,17 +25,31 @@ export const Plants = {
     },
 	
 	Wheat: {
-		price: 24,
+		price: 21,
         averageWeight: 100,
 		maxWeight: 190,
 		minWeight: 70,
 		growTime: 35,
-		seedPrice: 17,
+		seedPrice: 14,
 		description: "A basic grain used to produce flour and many staple foods. Commonly processed into bread, pasta, and other baked goods. One of the most important crops in everyday cooking.",
 		name: "Wheat",
 		rarity: "Uncommon",
     },
+
+	Onion: {
+		price: 30,
+        averageWeight: 150,
+		maxWeight: 220,
+		minWeight: 110,
+		growTime: 48,
+		seedPrice: 24,
+		description: "A strong-flavored vegetable often used as a base for cooking. Adds depth and aroma to dishes when fried or boiled, and can also be eaten raw for a sharper taste.",
+		name: "Onion",
+		rarity: "Uncommon",
+    },
 } as const;
+
+export const PlantsCount = 4;
 
 export type PlantName = keyof typeof Plants;
 

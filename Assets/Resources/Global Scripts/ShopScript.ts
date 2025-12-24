@@ -95,12 +95,6 @@ export default class ShopScript extends AirshipSingleton {
 
 			this.SIGNAL_PURCHASE_SEED_PACK.client.OnServerEvent((data) => {
 				print("CLIENT: Player " + data.playerName + " purchased seed pack: " + data.cropName);
-
-				Airship.Characters.ObserveCharacters((character) => {
-					if (character.player?.userId === data.playerName) {
-						character.inventory?.AddItem(new ItemStack(getPlantSeedName(data.cropName), 1));
-					}
-				});
 			});
 		}
 
@@ -134,6 +128,12 @@ export default class ShopScript extends AirshipSingleton {
 					print("SERVER: Crop " + data.cropName + " for " + player.username + " is available, purchasing...");
 
 					this.SIGNAL_PURCHASE_SEED_PACK.server.FireAllClients({cropName: data.cropName, playerName: player.userId});
+
+					Airship.Characters.ObserveCharacters((character) => {
+						if (character.player?.userId === player.userId) {
+							character.inventory?.AddItem(new ItemStack(getPlantSeedName(data.cropName), 1));
+						}
+					});
 
 					this.serverCropStock.set(data.cropName, this.serverCropStock.get(data.cropName)! - 1);
 

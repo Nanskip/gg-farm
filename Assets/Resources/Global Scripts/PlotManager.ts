@@ -96,6 +96,10 @@ export default class PlotManager extends AirshipSingleton {
 
 			print("PlotManager: Plot #" + i + " initialized with next index: " + (i + 1));
 			print(i, this.serverPlotData[i]);
+
+			// disable plot collider on server
+			const collider = this.Plots[i].GetComponent<BoxCollider>() as BoxCollider;
+			collider.enabled = false;
 		}
 	}
 

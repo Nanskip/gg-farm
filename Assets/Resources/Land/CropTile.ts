@@ -147,6 +147,7 @@ export default class CropTile extends AirshipBehaviour {
 		this.crop.transform.localScale = new Vector3(0, 0, 0);
 
 		this.crop.transform.position = this.transform.position;
+		this.crop.transform.rotation = Quaternion.Euler(0, math.random(-180, 180), 0);
 
 		this.timerText = Object.Instantiate(timerPrefab, this.transform.parent.transform.parent);
 		this.timerText.transform.position = new Vector3(this.transform.position.x, this.transform.position.y + 1.5, this.transform.position.z);

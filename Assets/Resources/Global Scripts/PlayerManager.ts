@@ -6,8 +6,9 @@ import { Mouse } from "@Easy/Core/Shared/UserInput";
 import CropManager from "./CropManager";
 import CropTile from "Resources/Land/CropTile";
 import PlotManager from "./PlotManager";
-import { getPlant } from "./PlantList";
 import { Player } from "@Easy/Core/Shared/Player/Player";
+import { getPlantSeedName, getPlantName, getPlant, Plants, PlantsCount} from "./PlantList"
+import ObjectUtils from "@Easy/Core/Shared/Util/ObjectUtils";
 
 export default class PlayerManager extends AirshipSingleton {
     private yourPlotIndex: number = 0;
@@ -81,45 +82,34 @@ export default class PlayerManager extends AirshipSingleton {
             accessoryPaths: ["Assets/Resources/ItemPrefabs/TestHoe.prefab"],
             //image: "Assets/Resources/ItemPrefabs/cat.png",
         });
-        // // Register a new item type
-        // Airship.Inventory.RegisterItem("Carrot", {
-        //     displayName: "Carrot",
-        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/Carrot.prefab"],
-        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
-        // });
-
-        // Airship.Inventory.RegisterItem("Potato", {
-        //     displayName: "Potato",
-        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/Potato.prefab"],
-        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
-        // });
-
-        // Airship.Inventory.RegisterItem("Wheat", {
-        //     displayName: "Wheat",
-        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/Wheat.prefab"],
-        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
-        // });
-
-        // Airship.Inventory.RegisterItem("CarrotSeed", {
-        //     displayName: "Carrot Seed",
-        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
-        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
-        // });
-
-        // Airship.Inventory.RegisterItem("PotatoSeed", {
-        //     displayName: "Potato Seed",
-        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
-        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
-        // });
-
-        // Airship.Inventory.RegisterItem("WheatSeed", {
-        //     displayName: "Wheat Seed",
-        //     accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
-        //     //image: "Assets/Resources/ItemPrefabs/cat.png",
-        // });
-
         // automate this thing instead of manually adding every item
 
+        const items = Plants;
+        for (let i = 0; i < PlantsCount; i++) {
+            const plant = ObjectUtils.entries(items)[i][1];
+
+            if (plant === undefined) {
+                print("Plant " + i + " is undefined.");
+
+                return;
+            } else {
+                print(plant);
+            }
+
+            // Register item prefabs
+            Airship.Inventory.RegisterItem(plant.name, {
+                displayName: plant.name,
+                accessoryPaths: ["Assets/Resources/ItemPrefabs/" + plant.name + ".prefab"],
+                //image: "Assets/Resources/ItemPrefabs/cat.png",
+            });
+
+            // Register item seeds
+            Airship.Inventory.RegisterItem(getPlantSeedName(plant.name), {
+                displayName: plant.name + " Seed",
+                accessoryPaths: ["Assets/Resources/ItemPrefabs/SeedPack.prefab"],
+                //image: "Assets/Resources/ItemPrefabs/cat.png",
+            });
+        }
     }
 
     @Server()
@@ -218,14 +208,30 @@ export default class PlayerManager extends AirshipSingleton {
                             rotation: Game.localPlayer.character!.movement.graphicTransform.rotation,
                             direction: dir
                         });
-                    } else if (item === "CarrotSeed" || item === "PotatoSeed") {
-                        Game.localPlayer.character?.animationHelper.PlayAnimation(this.seedAnim!, CharacterAnimationLayer.OVERRIDE_1, 0.1);
-                        this.SIGNAL_PLAYER_PLAY_ANIMATION.client.FireServer({
-                            animationName: "SeedPack",
-                            player: Game.localPlayer.userId,
-                            rotation: Game.localPlayer.character!.movement.graphicTransform.rotation,
-                            direction: dir
-                        });
+                    }
+                    const plants = Plants;
+                    const plantNum = PlantsCount;
+
+                    for (let i = 0; i < plantNum; i++) {
+                        const plant = ObjectUtils.entries(plants)[i][1];
+
+                        if (plant === undefined) {
+                            print("Plant " + i + " is undefined.");
+
+                            return;
+                        } else {
+                            //print(plant);
+                        }
+
+                        if (item === plant.name + "Seed") {
+                            Game.localPlayer.character?.animationHelper.PlayAnimation(this.seedAnim!, CharacterAnimationLayer.OVERRIDE_1, 0.1);
+                            this.SIGNAL_PLAYER_PLAY_ANIMATION.client.FireServer({
+                                animationName: "SeedPack",
+                                player: Game.localPlayer.userId,
+                                rotation: Game.localPlayer.character!.movement.graphicTransform.rotation,
+                                direction: dir
+                            });
+                        }
                     }
                 }
             }
